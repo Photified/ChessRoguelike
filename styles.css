@@ -12,13 +12,22 @@ body {
   flex-direction: column; align-items: center; min-height: 100vh;
 }
 
+/* HERO BANNER IMAGE */
+.hero-banner {
+  width: 100%;
+  max-width: 600px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+
 /* TOP BANNER HUD */
 .top-banner {
   width: 100%; max-width: 600px; display: flex; justify-content: space-between; align-items: center;
   background: #0a0a0a; border-bottom: 3px solid var(--accent-color);
   padding: 0.8rem 1rem; margin-bottom: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
-.banner-left h1 { font-size: 1.4rem; color: #fff; margin-bottom: 0.2rem; }
+.banner-left { display: flex; align-items: center; }
 .banner-center { text-align: center; }
 .stat-row { font-size: 1.1rem; font-weight: bold; color: #fff; }
 .stat-divider { margin: 0 0.5rem; color: #555; }
@@ -50,7 +59,7 @@ body {
 .cell.dark { background-color: var(--dark-square); }
 .cell.valid-move::after { content: ''; position: absolute; width: 25%; height: 25%; background-color: rgba(0,0,0,0.4); border-radius: 50%; }
 
-/* --- VOID SQUARE STYLING --- */
+/* VOID SQUARE STYLING */
 .cell.void {
   background-color: #050505 !important;
   box-shadow: inset 0 0 15px rgba(0,0,0,1);
@@ -62,7 +71,7 @@ body {
 .piece.player { color: #ffffff; text-shadow: 0 2px 6px rgba(0,0,0,0.9); }
 .piece.enemy { color: #111111; text-shadow: 0 1px 2px rgba(255,255,255,0.4); }
 
-/* --- BOSS STYLING --- */
+/* BOSS STYLING */
 .piece.boss {
   text-shadow: 0 0 12px #ff4500, 0 0 24px #ff0000 !important;
   animation: pulse 1.5s infinite;
@@ -86,12 +95,42 @@ body {
 
 #message-log { text-align: center; background: var(--panel-color); padding: 1rem; border-radius: 8px; font-weight: bold; border: 1px solid #333; font-size: 1.1rem; margin-bottom: 1rem; }
 
-#active-perks { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 2rem; }
-.active-perk-card { background: var(--bg-color); border: 1px solid var(--accent-color); padding: 0.8rem; border-radius: 6px; text-align: center; transition: all 0.2s ease; }
-.active-perk-card h4 { color: var(--accent-color); margin-bottom: 0.2rem; font-size: 1rem; }
-.active-perk-card p { font-size: 0.8rem; color: #aaa; }
+/* --- NEW 3-COLUMN SQUARE PERKS GRID --- */
+#active-perks { 
+  display: grid; 
+  grid-template-columns: repeat(3, 1fr); 
+  gap: 0.5rem; 
+  margin-bottom: 2rem; 
+  width: 100%;
+}
+.active-perk-card { 
+  background: var(--bg-color); 
+  border: 1px solid var(--accent-color); 
+  padding: 0.5rem; 
+  border-radius: 6px; 
+  text-align: center; 
+  transition: all 0.2s ease; 
+  
+  /* Forces the cards to be squares */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  aspect-ratio: 1 / 1;
+}
+.active-perk-card h4 { 
+  color: var(--accent-color); 
+  margin-bottom: 0.2rem; 
+  font-size: 0.85rem; 
+  line-height: 1.1; 
+}
+.active-perk-card p { 
+  font-size: 0.7rem; 
+  color: #aaa; 
+  line-height: 1.2; 
+}
 
-/* --- ACTIVE PERK TRAY INTERACTIONS --- */
+/* ACTIVE PERK TRAY INTERACTIONS */
 .clickable-perk { cursor: pointer; }
 .clickable-perk:hover { background-color: #2a2a2a; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(233, 69, 96, 0.3); }
 .clickable-perk:active { transform: translateY(0); }

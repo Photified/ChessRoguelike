@@ -1,6 +1,6 @@
 {
-  "name": "Chess Roguelike Sandbox",
-  "short_name": "ChessRL",
+  "name": "Chess Crawler Sandbox",
+  "short_name": "Chess Crawler",
   "description": "A dynamic board chess deckbuilder.",
   "start_url": "./index.html",
   "display": "standalone",
