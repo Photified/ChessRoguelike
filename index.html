@@ -3,18 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Chess Roguelike</title>
+  <title>ChessRL: Roguelike</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
-  <meta name="theme-color" content="#16213e">
+  <meta name="theme-color" content="#1e1e1e">
 </head>
 <body>
   <div id="app">
     <header>
-      <h1>ChessRL Sandbox</h1>
+      <h1>ChessRL</h1>
       <div class="controls">
-        <button id="expand-btn">Expand Board</button>
-        <button id="reset-btn">Reset</button>
+        <button id="reset-btn">Restart Run</button>
       </div>
     </header>
     
@@ -24,18 +23,31 @@
       </div>
     </main>
     
-    <div id="message-log">Game Started. Select your Knight.</div>
+    <div id="message-log">Loading Engine...</div>
+  </div>
+
+  <div id="draft-screen" style="display: none;">
+    <h2 id="draft-title">Choose a Power-Up!</h2>
+    <div class="draft-cards">
+      <div class="card" onclick="selectGambit('bloodlust')">
+        <h3>🩸 Bloodlust</h3>
+        <p>Chain kills! Capturing an enemy gives you an instant extra turn.</p>
+      </div>
+      <div class="card" onclick="selectGambit('explosive')">
+        <h3>💣 Explosive Landing</h3>
+        <p>Landing obliterates any enemies on adjacent squares instantly.</p>
+      </div>
+      <div class="card" onclick="selectGambit('agile')">
+        <h3>⚡ Agile Steed</h3>
+        <p>Your Knight can now also move 1 square in any direction like a King.</p>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
   <script>
-    // Register the Service Worker for offline PWA support
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('Service Worker Registered!', reg))
-          .catch(err => console.error('Service Worker Failed!', err));
-      });
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
     }
   </script>
 </body>
