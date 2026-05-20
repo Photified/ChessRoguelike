@@ -3,10 +3,9 @@ let gameState = {
   level: 1, board: { width: 5, height: 5 }, pieces: [],
   selectedPieceId: null, validMoves: [], turn: 'player',
   perks: [], playerType: 'Knight', isDrafting: false,
-  bloodlustUsed: 0 // Prevents infinite turn loops
+  bloodlustUsed: 0 
 };
 
-// Added Bishop and Rook
 const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
 
 const gambitPool = [
@@ -75,13 +74,12 @@ function startLevel() {
   const px = Math.floor(gameState.board.width / 2), py = gameState.board.height - 1;
   gameState.pieces = [{ id: 'player', type: gameState.playerType, team: 'player', x: px, y: py }];
 
-  // Difficulty Scaling
   const pawnCount = gameState.level + 1; 
   for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
   
   if (gameState.level >= 2) spawnEnemy('Queen', 2);
-  if (gameState.level >= 3) spawnEnemy('Rook', 3); // Armored Tanks spawn
-  if (gameState.level >= 4) spawnEnemy('Bishop', 3); // Cross-map Snipers spawn
+  if (gameState.level >= 3) spawnEnemy('Rook', 3); 
+  if (gameState.level >= 4) spawnEnemy('Bishop', 3); 
   if (gameState.level >= 5) spawnEnemy('Queen', 2);
 
   log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
@@ -126,7 +124,9 @@ function getValidMoves(piece) {
   if (piece.type === 'Paladin') { addJumps(knightJumps); addJumps(kingJumps); }
   if (piece.type === 'Archbishop') { addJumps(knightJumps); addSlides(1,1); addSlides(1,-1); addSlides(-1,1); addSlides(-1,-1); }
   if (piece.type === 'Chancellor') { addJumps(knightJumps); addSlides(1,0); addSlides(-1,0); addSlides(0,1); addSlides(0,-1); }
-  if (gameState.perks.includes('agile') && piece.team === 'player') addJumps(kingJumps);
+  
+  // Player-only perks
+  if (piece.team === 'player' && gameState.perks.includes('agile')) addJumps(kingJumps);
 
   return moves.filter((v,i,a) => a.findIndex(t => (t.x === v.x && t.y === v.y)) === i);
 }
@@ -143,22 +143,6 @@ function handleCellClick(x, y) {
     gameState.selectedPieceId = null; gameState.validMoves = [];
   }
   render();
-}
-
-// Reusable logic to handle splash damage against Armored units
-function applySplashDamage(x, y) {
-  const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === x && p.y === y);
-  if (idx !== -1) { 
-    if (gameState.pieces[idx].type === 'Rook') {
-        log("An Armored Rook deflected the explosion!");
-        return false; // Did not kill
-    } else {
-        gameState.pieces.splice(idx, 1); 
-        shakeScreen(); 
-        return true; // Killed
-    }
-  }
-  return false;
 }
 
 function movePiece(id, tx, ty) {
@@ -179,15 +163,18 @@ function movePiece(id, tx, ty) {
     piece.type = 'Queen'; log("A Pawn promoted to a Queen!"); shakeScreen();
   }
 
+  // Pure destruction. No exceptions, no armor.
   if (piece.team === 'player') {
     if (gameState.perks.includes('explosive')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}].forEach(adj => {
-        if (applySplashDamage(adj.x, adj.y)) killedEnemy = true;
+        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
+        if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; shakeScreen(); }
       });
     }
     if (moveWasCapture && gameState.perks.includes('cleave')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
-        applySplashDamage(adj.x, adj.y);
+        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
+        if (idx !== -1) { gameState.pieces.splice(idx, 1); shakeScreen(); }
       });
     }
   }
@@ -199,18 +186,13 @@ function movePiece(id, tx, ty) {
       log("Wave Cleared!"); gameState.level++;
       setTimeout(() => { (gameState.level === 3 || gameState.level === 6) ? triggerDraft('evolution') : triggerDraft('gambit'); }, 800);
     } else {
-      // BLOODLUST FATIGUE: Hard capped at 1 trigger per round.
       if (killedEnemy && gameState.perks.includes('bloodlust') && gameState.bloodlustUsed < 1) {
-        log("BLOODLUST! 1 Extra Turn!"); 
-        gameState.bloodlustUsed++; 
-        gameState.turn = 'player';
+        log("BLOODLUST! 1 Extra Turn!"); gameState.bloodlustUsed++; gameState.turn = 'player';
       } else if (!killedEnemy && gameState.perks.includes('momentum') && !gameState.momentumUsedThisTurn) {
         log("MOMENTUM! Quick step."); gameState.momentumUsedThisTurn = true; gameState.turn = 'player';
       } else {
-        gameState.turn = 'enemy'; 
-        gameState.momentumUsedThisTurn = false; 
-        gameState.bloodlustUsed = 0; // Reset fatigue
-        setTimeout(playEnemyTurn, 200); 
+        gameState.turn = 'enemy'; gameState.momentumUsedThisTurn = false; gameState.bloodlustUsed = 0; 
+        setTimeout(playEnemyTurn, 100); 
       }
     }
   } else {
@@ -218,87 +200,85 @@ function movePiece(id, tx, ty) {
   }
 }
 
-// --- ADVANCED AI LOGIC ---
+// --- NATURAL CHESS AI ENGINE ---
 function playEnemyTurn() {
   const enemies = gameState.pieces.filter(p => p.team === 'enemy');
   const player = gameState.pieces.find(p => p.team === 'player');
   if (!player || !enemies.length) return;
 
-  // Reusable Raycaster for Lethal Checks
-  const checkLethalRay = (enemy, dirs) => {
-    for (let d of dirs) {
-      let cx = enemy.x + d.dx, cy = enemy.y + d.dy;
-      while (cx >= 0 && cx < gameState.board.width && cy >= 0 && cy < gameState.board.height) {
-        if (cx === player.x && cy === player.y) return {x: cx, y: cy}; // Lethal found
-        if (gameState.pieces.some(p => p.x === cx && p.y === cy)) break; // Line of sight blocked
-        cx += d.dx; cy += d.dy;
+  // 1. Calculate player's threat map (where the player can attack next turn)
+  const playerThreats = getValidMoves(player).map(m => `${m.x},${m.y}`);
+  
+  let allPossibleMoves = [];
+
+  const addEnemySlides = (enemy, dx, dy) => {
+    let tx = enemy.x + dx, ty = enemy.y + dy;
+    while(tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
+      if (tx === player.x && ty === player.y) {
+        allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: true }); break;
       }
+      if (gameState.pieces.some(p => p.x === tx && p.y === ty)) break; // Blocked
+      allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: false });
+      tx += dx; ty += dy;
     }
-    return null;
   };
 
-  const straights = [{dx: 0, dy: 1}, {dx: 1, dy: 0}, {dx: 0, dy: -1}, {dx: -1, dy: 0}];
-  const diagonals = [{dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: -1}, {dx: -1, dy: 1}];
-
-  // 1. EXECUTE LETHAL BLUNDERS FIRST
-  for (let enemy of enemies) {
-    if (enemy.type === 'Pawn') {
-      if (player.y === enemy.y + 1 && (player.x === enemy.x - 1 || player.x === enemy.x + 1)) {
-        movePiece(enemy.id, player.x, player.y); return; 
-      }
-    } else if (enemy.type === 'Bishop') {
-      let lethal = checkLethalRay(enemy, diagonals);
-      if (lethal) { movePiece(enemy.id, lethal.x, lethal.y); return; }
-    } else if (enemy.type === 'Rook') {
-      let lethal = checkLethalRay(enemy, straights);
-      if (lethal) { movePiece(enemy.id, lethal.x, lethal.y); return; }
-    } else if (enemy.type === 'Queen') {
-      let lethal = checkLethalRay(enemy, [...straights, ...diagonals]);
-      if (lethal) { movePiece(enemy.id, lethal.x, lethal.y); return; }
-    }
-  }
-
-  // 2. STANDARD MOVEMENT
-  let moves = [];
   enemies.forEach(enemy => {
+    // Generate legal moves strictly based on chess rules
     if (enemy.type === 'Pawn') {
       const fy = enemy.y + 1;
-      if (fy < gameState.board.height && !gameState.pieces.some(p => p.x === enemy.x && p.y === fy)) {
-        moves.push({ id: enemy.id, x: enemy.x, y: fy });
+      if (fy < gameState.board.height) {
+        if (!gameState.pieces.some(p => p.x === enemy.x && p.y === fy)) {
+          allPossibleMoves.push({ id: enemy.id, x: enemy.x, y: fy, isLethal: false }); // March forward
+        }
+        if (player.y === fy && (player.x === enemy.x - 1 || player.x === enemy.x + 1)) {
+          allPossibleMoves.push({ id: enemy.id, x: player.x, y: fy, isLethal: true }); // Diagonal capture
+        }
       }
-    } else if (enemy.type === 'Queen' || enemy.type === 'Rook') {
-      // Queens and Rooks hunt you on straights
-      let tx = enemy.x, ty = enemy.y;
-      if (player.x > enemy.x) tx++; else if (player.x < enemy.x) tx--;
-      if (player.y > enemy.y) ty++; else if (player.y < enemy.y) ty--;
-      
-      // If it's a Rook, it only wants to move on straights, not diagonals
-      if (enemy.type === 'Rook') {
-        if (Math.abs(player.x - enemy.x) > Math.abs(player.y - enemy.y)) ty = enemy.y; else tx = enemy.x;
-      }
-      
-      if (!gameState.pieces.some(p => p.team === 'enemy' && p.x === tx && p.y === ty)) {
-        moves.push({ id: enemy.id, x: tx, y: ty });
-      }
+    } else if (enemy.type === 'Queen') {
+      [{dx: 0,dy: 1},{dx: 1,dy: 0},{dx: 0,dy: -1},{dx: -1,dy: 0},{dx: 1,dy: 1},{dx: 1,dy: -1},{dx: -1,dy: -1},{dx: -1,dy: 1}].forEach(d => addEnemySlides(enemy, d.dx, d.dy));
+    } else if (enemy.type === 'Rook') {
+      [{dx: 0,dy: 1},{dx: 1,dy: 0},{dx: 0,dy: -1},{dx: -1,dy: 0}].forEach(d => addEnemySlides(enemy, d.dx, d.dy));
     } else if (enemy.type === 'Bishop') {
-      // Bishops shimmy diagonally toward you
-      let dx = player.x > enemy.x ? 1 : -1;
-      let dy = player.y > enemy.y ? 1 : -1;
-      let tx = enemy.x + dx, ty = enemy.y + dy;
-      if (tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
-          if (!gameState.pieces.some(p => p.team === 'enemy' && p.x === tx && p.y === ty)) {
-            moves.push({ id: enemy.id, x: tx, y: ty });
-          }
-      }
+      [{dx: 1,dy: 1},{dx: 1,dy: -1},{dx: -1,dy: -1},{dx: -1,dy: 1}].forEach(d => addEnemySlides(enemy, d.dx, d.dy));
     }
   });
 
-  if (moves.length > 0) {
-    const move = moves[Math.floor(Math.random() * moves.length)];
-    movePiece(move.id, move.x, move.y);
-  } else {
-    gameState.turn = 'player'; 
+  // 2. Evaluate Moves
+  if (allPossibleMoves.length > 0) {
+    // Immediate Win Condition check
+    const lethalMove = allPossibleMoves.find(m => m.isLethal);
+    if (lethalMove) {
+      movePiece(lethalMove.id, lethalMove.x, lethalMove.y);
+      return;
+    }
+
+    // Heuristic Scoring for natural play
+    let bestMove = null;
+    let highestScore = -Infinity;
+
+    allPossibleMoves.forEach(move => {
+      let score = 0;
+      
+      // Bonus for moving out of the player's attack line
+      const currentlyThreatened = playerThreats.includes(`${gameState.pieces.find(p=>p.id===move.id).x},${gameState.pieces.find(p=>p.id===move.id).y}`);
+      const moveIsSafe = !playerThreats.includes(`${move.x},${move.y}`);
+      
+      if (currentlyThreatened && moveIsSafe) score += 50; // High priority to escape capture
+      if (!currentlyThreatened && !moveIsSafe) score -= 100; // Do not walk into capture
+
+      // Distance to player (closer is better, keeps pressure on)
+      const distance = Math.abs(player.x - move.x) + Math.abs(player.y - move.y);
+      score -= distance; 
+
+      if (score > highestScore) { highestScore = score; bestMove = move; }
+      else if (score === highestScore && Math.random() > 0.5) { bestMove = move; } // Randomize ties
+    });
+
+    if (bestMove) { movePiece(bestMove.id, bestMove.x, bestMove.y); return; }
   }
+  
+  gameState.turn = 'player'; // If truly trapped, skip turn
 }
 
 function render() {
@@ -318,10 +298,6 @@ function render() {
         const pEl = document.createElement('div');
         pEl.className = `piece ${piece.team}`;
         pEl.textContent = symbols[piece.type];
-        
-        // Add a visual CSS identifier for the Armored Rooks
-        if (piece.type === 'Rook') pEl.style.textShadow = "0 0 10px rgba(255, 0, 0, 0.8)";
-        
         if (piece.id === gameState.selectedPieceId) pEl.style.transform = 'scale(1.3)';
         cell.appendChild(pEl);
       }
