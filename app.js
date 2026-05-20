@@ -18,9 +18,8 @@ const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook:
 // --- LEVEL-UP GAMBIT POOL ---
 const gambitPool = [
   { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', maxLevel: 3, getDesc: (lvl) => `Gain an extra turn after a kill (Max ${lvl}/round).` },
-  { id: 'explosive', icon: '💣', title: 'Explosive Landing', maxLevel: 1, getDesc: () => `Landing obliterates adjacent enemies.` },
+  { id: 'cleave', icon: '🪓', title: 'Cleave', maxLevel: 2, getDesc: (lvl) => lvl === 1 ? `Captures destroy all surrounding enemies.` : `All landings obliterate adjacent enemies.` },
   { id: 'agile', icon: '⚡', title: 'Agile Steed', maxLevel: 1, getDesc: () => `Add 1-square King movement in all directions.` },
-  { id: 'cleave', icon: '🪓', title: 'Cleave', maxLevel: 1, getDesc: () => `Captures destroy all surrounding enemies.` },
   { id: 'momentum', icon: '💨', title: 'Momentum', maxLevel: 3, getDesc: (lvl) => `First non-capture move per turn grants an extra action (Max ${lvl}/round).` }
 ];
 
@@ -219,19 +218,19 @@ function movePiece(id, tx, ty) {
   }
 
   if (piece.team === 'player') {
-    if (gameState.perks.includes('explosive')) {
-      [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
-       {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
-        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-        if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; multiKillCount++; shakeScreen(); }
-      });
-    }
+    const cleaveLvl = getPerkLevel('cleave');
     
-    if (moveWasCapture && gameState.perks.includes('cleave')) {
+    // Level 2 triggers on any move, Level 1 triggers only on capture
+    if (cleaveLvl >= 2 || (cleaveLvl === 1 && moveWasCapture)) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
        {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
         const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-        if (idx !== -1) { gameState.pieces.splice(idx, 1); multiKillCount++; shakeScreen(); }
+        if (idx !== -1) { 
+          gameState.pieces.splice(idx, 1); 
+          killedEnemy = true; 
+          multiKillCount++; 
+          shakeScreen(); 
+        }
       });
     }
     
@@ -266,9 +265,9 @@ function movePiece(id, tx, ty) {
         log(`MOMENTUM! (${gameState.momentumUsed}/${momLevel}) Quick step.`); 
         gameState.turn = 'player';
       } else {
-  gameState.turn = 'enemy'; 
-  setTimeout(playEnemyTurn, 100); 
-}
+        gameState.turn = 'enemy'; 
+        setTimeout(playEnemyTurn, 100); 
+      }
     }
   } else {
     gameState.turn = 'player';
