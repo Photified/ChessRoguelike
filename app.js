@@ -484,6 +484,11 @@ function playEnemyTurn() {
     if (lethalMove) { movePiece(lethalMove.id, lethalMove.x, lethalMove.y); return; }
 
     let bestMove = null, highestScore = -Infinity;
+    
+    // --- BATTLE ROYALE SURVIVAL INSTINCT ---
+    const isStalling = (enemies.length === 1 && gameState.turnsSinceCapture >= 3);
+    const nextDangerRing = gameState.suddenDeathActive ? gameState.suddenDeathRing + (gameState.suddenDeathTimer >= 2 ? 1 : 0) : 0;
+
     allPossibleMoves.forEach(move => {
       let score = 0;
       const currentlyThreatened = playerThreats.includes(`${gameState.pieces.find(p=>p.id===move.id).x},${gameState.pieces.find(p=>p.id===move.id).y}`);
@@ -492,6 +497,16 @@ function playEnemyTurn() {
       if (currentlyThreatened && moveIsSafe) score += 50; 
       if (!currentlyThreatened && !moveIsSafe) score -= 100; 
       score -= (Math.abs(player.x - move.x) + Math.abs(player.y - move.y)); 
+
+      if (isStalling || gameState.suddenDeathActive) {
+        const moveRing = Math.min(move.x, move.y, gameState.board.width - 1 - move.x, gameState.board.height - 1 - move.y);
+        
+        if (moveRing <= nextDangerRing) {
+          score -= 500; 
+        } else {
+          score += (moveRing * 20); 
+        }
+      }
 
       if (score > highestScore) { highestScore = score; bestMove = move; }
       else if (score === highestScore && Math.random() > 0.5) { bestMove = move; } 
