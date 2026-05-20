@@ -67,7 +67,29 @@ function updateBestLevel() {
   }
 }
 
+// --- BOOT & HOME SCREEN LOGIC ---
+function bootApp() {
+  gameState.level = 1; gameState.score = 0; gameState.board = { width: 5, height: 5 };
+  
+  // Render a dummy board for the home screen
+  gameState.pieces = [{ id: 'dummy', type: 'Knight', team: 'player', x: 2, y: 4 }];
+  gameState.turn = 'home'; // Prevents board interaction
+  
+  updateHUD();
+  render();
+  
+  // Show Home UI, Hide Game UI
+  document.getElementById('home-screen-actions').style.display = 'flex';
+  document.getElementById('message-log').style.display = 'none';
+  document.getElementById('active-perks').style.display = 'none';
+}
+
 function initGame() {
+  // Hide Home UI, Show Game UI
+  document.getElementById('home-screen-actions').style.display = 'none';
+  document.getElementById('message-log').style.display = 'block';
+  document.getElementById('active-perks').style.display = 'grid'; // Uses the new CSS grid
+
   gameState.level = 1; gameState.score = 0; gameState.board = { width: 5, height: 5 };
   gameState.perks = []; gameState.playerType = 'Knight';
   updateHUD();
@@ -124,7 +146,6 @@ function startLevel() {
   gameState.turn = 'player'; gameState.selectedPieceId = null; gameState.validMoves = [];
   gameState.bloodlustUsed = 0; gameState.momentumUsed = 0; gameState.levelTurnCount = 0;
   
-  // Reset new mechanics
   gameState.voidSquares = []; gameState.turnsSinceCapture = 0;
   gameState.suddenDeathActive = false; gameState.suddenDeathTimer = 0; gameState.suddenDeathRing = 0;
   gameState.isPlacingTrap = false; gameState.trapUsedThisRound = false;
@@ -205,9 +226,8 @@ function getValidMoves(piece) {
 }
 
 function handleCellClick(x, y) {
-  if (gameState.turn === 'gameover' || gameState.turn !== 'player' || gameState.isDrafting) return;
+  if (gameState.turn === 'gameover' || gameState.turn === 'home' || gameState.turn !== 'player' || gameState.isDrafting) return;
   
-  // Abyssal Trap Placement
   if (gameState.isPlacingTrap) {
     if (!gameState.pieces.some(p => p.x === x && p.y === y) && !gameState.voidSquares.some(v => v.x === x && v.y === y)) {
       gameState.voidSquares.push({x, y});
@@ -304,7 +324,6 @@ function movePiece(id, tx, ty) {
     const cap = gameState.pieces[tgtIdx];
     if (cap.team === 'player') { log("YOU DIED. Final Score: " + gameState.score); document.getElementById('board').classList.add('shake'); gameState.turn = 'gameover'; render(); return; }
     
-    // --- BOSS ENCOUNTER LOGIC ---
     if (cap.isBoss && cap.hp > 1) {
       const originalBossX = cap.x, originalBossY = cap.y;
       piece.x = tx; piece.y = ty;
@@ -354,13 +373,11 @@ function movePiece(id, tx, ty) {
     piece.type = 'Queen'; log("A Pawn promoted to a Queen!"); shakeScreen();
   }
 
-  // Tracking for Sudden Death
   if (piece.team === 'player') {
     if (moveWasCapture) gameState.turnsSinceCapture = 0;
     else gameState.turnsSinceCapture++;
   }
 
-  // Cleave Logic
   if (piece.team === 'player') {
     const cleaveLvl = getPerkLevel('cleave');
     if (cleaveLvl >= 2 || (cleaveLvl === 1 && moveWasCapture)) {
@@ -390,7 +407,6 @@ function movePiece(id, tx, ty) {
     if (enemies.length === 0) {
       triggerWaveClear();
     } else {
-      // Sudden Death Evaluation
       if (enemies.length === 1 && gameState.turnsSinceCapture >= 5) {
         if (!gameState.suddenDeathActive) {
             gameState.suddenDeathActive = true;
@@ -485,7 +501,6 @@ function playEnemyTurn() {
 
     let bestMove = null, highestScore = -Infinity;
     
-    // --- BATTLE ROYALE SURVIVAL INSTINCT ---
     const isStalling = (enemies.length === 1 && gameState.turnsSinceCapture >= 3);
     const nextDangerRing = gameState.suddenDeathActive ? gameState.suddenDeathRing + (gameState.suddenDeathTimer >= 2 ? 1 : 0) : 0;
 
@@ -567,12 +582,12 @@ function render() {
       
       if (perkId === 'trap') {
         const isUsed = gameState.trapUsedThisRound;
-        const actionText = isUsed ? '(Used This Round)' : '(Tap to Place Void)';
+        const actionText = isUsed ? '(Used)' : '(Tap to Use)';
         const interactClass = isUsed ? 'used-perk' : 'clickable-perk';
         tray.innerHTML += `
           <div class="active-perk-card ${interactClass}" ${!isUsed ? 'onclick="activateTrap()"' : ''}>
             <h4>${p.icon} ${p.title}${titleSuffix}</h4>
-            <p>${p.getDesc(lvl)}<br><b style="color: ${isUsed ? '#888' : '#e94560'}; margin-top: 5px; display: block;">${actionText}</b></p>
+            <p>${p.getDesc(lvl)}<br><b style="color: ${isUsed ? '#888' : '#e94560'}; margin-top: 2px; display: block;">${actionText}</b></p>
           </div>`;
       } else {
         tray.innerHTML += `<div class="active-perk-card"><h4>${p.icon} ${p.title}${titleSuffix}</h4><p>${p.getDesc(lvl)}</p></div>`;
@@ -588,8 +603,10 @@ function shakeScreen() {
 
 function log(msg) { document.getElementById('message-log').textContent = msg; }
 
-// Modals and Boot
+// --- EVENT LISTENERS ---
 document.getElementById('reset-btn').addEventListener('click', initGame);
+document.getElementById('start-game-btn').addEventListener('click', initGame);
+
 const modal = document.getElementById('help-modal');
 document.getElementById('help-btn').addEventListener('click', () => modal.style.display = 'flex');
 document.getElementById('close-modal').addEventListener('click', () => modal.style.display = 'none');
@@ -597,10 +614,24 @@ window.addEventListener('click', (e) => { if (e.target === modal) modal.style.di
 
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault(); deferredPrompt = e; document.getElementById('install-btn').style.display = 'block';
-});
-document.getElementById('install-btn').addEventListener('click', async () => {
-  if (deferredPrompt) { deferredPrompt.prompt(); const { outcome } = await deferredPrompt.userChoice; if (outcome === 'accepted') document.getElementById('install-btn').style.display = 'none'; deferredPrompt = null; }
+  e.preventDefault(); 
+  deferredPrompt = e; 
+  document.getElementById('install-btn').style.display = 'block';
+  document.getElementById('home-install-btn').style.display = 'block'; // Triggers the big start-screen button
 });
 
-updateHUD(); initGame();
+const handleInstallClick = async () => {
+  if (deferredPrompt) { 
+    deferredPrompt.prompt(); 
+    const { outcome } = await deferredPrompt.userChoice; 
+    if (outcome === 'accepted') {
+      document.getElementById('install-btn').style.display = 'none'; 
+      document.getElementById('home-install-btn').style.display = 'none'; 
+    }
+    deferredPrompt = null; 
+  }
+};
+document.getElementById('install-btn').addEventListener('click', handleInstallClick);
+document.getElementById('home-install-btn').addEventListener('click', handleInstallClick);
+
+updateHUD(); bootApp();
