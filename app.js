@@ -159,14 +159,37 @@ function startLevel() {
   gameState.pieces = [{ id: 'player', type: gameState.playerType, team: 'player', x: px, y: py }];
 
   if (isBossLevel) {
-    const bossHp = 3 + (Math.floor(gameState.level / 5) - 1) * 2;
+    const bossTier = Math.floor(gameState.level / 5);
+    const bossHp = 3 + (bossTier - 1) * 2;
     const bx = Math.floor(gameState.board.width / 2);
     const by = 0;
     
+    // The Boss King
     gameState.pieces.push({ id: 'boss', type: 'King', team: 'enemy', x: bx, y: by, hp: bossHp, isBoss: true });
-    gameState.pieces.push({ id: 'guard1', type: 'Rook', team: 'enemy', x: Math.max(0, bx - 1), y: by });
-    gameState.pieces.push({ id: 'guard2', type: 'Rook', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
-    log(`WARNING: Boss Wave! Defeat the King!`);
+    
+    // Dynamic Vanguard Formation based on Boss Tier
+    if (bossTier === 1) {
+      // Level 5: 1 Pawn front, 1 Bishop left
+      gameState.pieces.push({ id: 'guard1', type: 'Pawn', team: 'enemy', x: bx, y: by + 1 });
+      gameState.pieces.push({ id: 'guard2', type: 'Bishop', team: 'enemy', x: Math.max(0, bx - 1), y: by });
+    } else if (bossTier === 2) {
+      // Level 10: 1 Pawn front, 1 Bishop left, 1 Rook right
+      gameState.pieces.push({ id: 'guard1', type: 'Pawn', team: 'enemy', x: bx, y: by + 1 });
+      gameState.pieces.push({ id: 'guard2', type: 'Bishop', team: 'enemy', x: Math.max(0, bx - 1), y: by });
+      gameState.pieces.push({ id: 'guard3', type: 'Rook', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
+    } else if (bossTier === 3) {
+      // Level 15: 1 Rook front, 2 Bishops flanks
+      gameState.pieces.push({ id: 'guard1', type: 'Rook', team: 'enemy', x: bx, y: by + 1 });
+      gameState.pieces.push({ id: 'guard2', type: 'Bishop', team: 'enemy', x: Math.max(0, bx - 1), y: by });
+      gameState.pieces.push({ id: 'guard3', type: 'Bishop', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
+    } else {
+      // Level 20+: 1 Queen front, 2 Rooks flanks
+      gameState.pieces.push({ id: 'guard1', type: 'Queen', team: 'enemy', x: bx, y: by + 1 });
+      gameState.pieces.push({ id: 'guard2', type: 'Rook', team: 'enemy', x: Math.max(0, bx - 1), y: by });
+      gameState.pieces.push({ id: 'guard3', type: 'Rook', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
+    }
+    
+    log(`WARNING: Boss Wave! Break the Vanguard!`);
   } else {
     const pawnCount = gameState.level + 1; 
     for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
@@ -332,7 +355,7 @@ function movePiece(id, tx, ty) {
       const playerThreats = getValidMoves(piece).map(m => `${m.x},${m.y}`);
       let validKnockbacks = [];
       
-      [{dx:0,dy:1},{dx:1,dy:0},{dx:0,dy:-1},{dx:-1,dy:0},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:-1},{dx:1,dy:1}].forEach(d => {
+      [{dx:0,dy:1},{dx:1,dy:0},{dx:0,dy:-1},{dx:-1,dy:0},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:-1},{dx:-1,dy:1}].forEach(d => {
           const nx = originalBossX + d.dx, ny = originalBossY + d.dy;
           if (nx >= 0 && nx < gameState.board.width && ny >= 0 && ny < gameState.board.height) {
               if (!gameState.pieces.some(p => p.x === nx && p.y === ny && p.id !== cap.id)) {
