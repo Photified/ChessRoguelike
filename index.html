@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Chess Roguelike</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <meta name="theme-color" content="#16213e">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>ChessRL Sandbox</h1>
+      <div class="controls">
+        <button id="expand-btn">Expand Board</button>
+        <button id="reset-btn">Reset</button>
+      </div>
+    </header>
+    
+    <main>
+      <div id="board-container">
+        <div id="board"></div>
+      </div>
+    </main>
+    
+    <div id="message-log">Game Started. Select your Knight.</div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Register the Service Worker for offline PWA support
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker Registered!', reg))
+          .catch(err => console.error('Service Worker Failed!', err));
+      });
+    }
+  </script>
+</body>
+</html>

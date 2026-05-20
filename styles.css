@@ -1,0 +1,111 @@
+:root {
+  --bg-color: #1a1a2e;
+  --panel-color: #16213e;
+  --text-color: #e94560;
+  --light-square: #ebd1a9;
+  --dark-square: #a37253;
+  --highlight-color: rgba(233, 69, 96, 0.6);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none; /* Prevents text highlighting when tapping fast */
+}
+
+body {
+  background-color: var(--bg-color);
+  color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+#app {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+h1 {
+  color: var(--text-color);
+  margin-bottom: 1rem;
+}
+
+button {
+  background-color: var(--text-color);
+  color: #fff;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 0 0.5rem;
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+#board-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1;
+}
+
+#board {
+  display: grid;
+  gap: 0;
+  border: 4px solid var(--panel-color);
+  background-color: var(--panel-color);
+  /* The dynamic inline styles from JS will override grid-template columns/rows */
+}
+
+.cell {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  cursor: pointer;
+  position: relative;
+}
+
+.cell.light { background-color: var(--light-square); }
+.cell.dark { background-color: var(--dark-square); }
+
+.cell.valid-move::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-color: var(--highlight-color);
+  border-radius: 50%;
+}
+
+.piece {
+  z-index: 2;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.piece.player { color: #fff; }
+.piece.enemy { color: #000; }
+
+#message-log {
+  margin-top: 2rem;
+  text-align: center;
+  background: var(--panel-color);
+  padding: 1rem;
+  border-radius: 8px;
+}
