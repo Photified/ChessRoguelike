@@ -1,10 +1,16 @@
-// --- STATE ---
+// --- STATE & SCORING ---
 let gameState = {
   level: 1, board: { width: 5, height: 5 }, pieces: [],
   selectedPieceId: null, validMoves: [], turn: 'player',
   perks: [], playerType: 'Knight', isDrafting: false,
-  bloodlustUsed: 0 
+  bloodlustUsed: 0,
+  score: 0,
+  levelTurnCount: 0 // Tracks efficiency
 };
+
+// Persistent Stats
+let bestScore = parseInt(localStorage.getItem('chessrl_bestscore')) || 0;
+let bestLevel = parseInt(localStorage.getItem('chessrl_bestlevel')) || 1;
 
 const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
 
@@ -22,9 +28,44 @@ const evolutionPool = [
   { id: 'Chancellor', icon: '♖', title: 'The Chancellor', desc: 'Evolve! Moves as Knight + Rook.' }
 ];
 
+function updateHUD() {
+  document.getElementById('hud-level').textContent = gameState.level;
+  const scoreEl = document.getElementById('hud-score');
+  scoreEl.textContent = gameState.score;
+  document.getElementById('hud-best-lvl').textContent = bestLevel;
+  document.getElementById('hud-best-score').textContent = bestScore;
+}
+
+function addScore(points, isBonus = false) {
+  gameState.score += points;
+  const scoreEl = document.getElementById('hud-score');
+  scoreEl.textContent = gameState.score;
+  
+  if (isBonus) {
+    scoreEl.classList.remove('score-pop');
+    void scoreEl.offsetWidth; // trigger reflow
+    scoreEl.classList.add('score-pop');
+  }
+
+  if (gameState.score > bestScore) {
+    bestScore = gameState.score;
+    localStorage.setItem('chessrl_bestscore', bestScore);
+  }
+  updateHUD();
+}
+
+function updateBestLevel() {
+  if (gameState.level > bestLevel) {
+    bestLevel = gameState.level;
+    localStorage.setItem('chessrl_bestlevel', bestLevel);
+    updateHUD();
+  }
+}
+
 function initGame() {
-  gameState.level = 1; gameState.board = { width: 5, height: 5 };
+  gameState.level = 1; gameState.score = 0; gameState.board = { width: 5, height: 5 };
   gameState.perks = []; gameState.playerType = 'Knight';
+  updateHUD();
   triggerDraft('gambit'); 
 }
 
@@ -40,7 +81,10 @@ function triggerDraft(type) {
     });
   } else {
     document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose a Perk!`;
-    const shuffled = [...gambitPool].sort(() => 0.5 - Math.random()).slice(0, 3);
+    const availableGambits = gambitPool.filter(g => !gameState.perks.includes(g.id));
+    if (availableGambits.length === 0) { finishDraft(); return; }
+    
+    const shuffled = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
     shuffled.forEach(gambit => {
       container.innerHTML += `<div class="card" onclick="selectGambit('${gambit.id}')"><h3>${gambit.icon} ${gambit.title}</h3><p>${gambit.desc}</p></div>`;
     });
@@ -48,15 +92,8 @@ function triggerDraft(type) {
   document.getElementById('draft-screen').style.display = 'flex';
 }
 
-window.selectGambit = function(perk) {
-  if (!gameState.perks.includes(perk)) gameState.perks.push(perk);
-  finishDraft();
-};
-
-window.selectEvolution = function(newType) {
-  gameState.playerType = newType;
-  finishDraft();
-};
+window.selectGambit = function(perk) { if (!gameState.perks.includes(perk)) gameState.perks.push(perk); finishDraft(); };
+window.selectEvolution = function(newType) { gameState.playerType = newType; finishDraft(); };
 
 function finishDraft() {
   document.getElementById('draft-screen').style.display = 'none';
@@ -66,7 +103,7 @@ function finishDraft() {
 
 function startLevel() {
   gameState.turn = 'player'; gameState.selectedPieceId = null; gameState.validMoves = [];
-  gameState.bloodlustUsed = 0;
+  gameState.bloodlustUsed = 0; gameState.levelTurnCount = 0;
 
   if (gameState.level === 3) gameState.board = { width: 6, height: 6 };
   if (gameState.level === 5) gameState.board = { width: 7, height: 7 };
@@ -76,12 +113,12 @@ function startLevel() {
 
   const pawnCount = gameState.level + 1; 
   for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
-  
   if (gameState.level >= 2) spawnEnemy('Queen', 2);
   if (gameState.level >= 3) spawnEnemy('Rook', 3); 
   if (gameState.level >= 4) spawnEnemy('Bishop', 3); 
   if (gameState.level >= 5) spawnEnemy('Queen', 2);
 
+  updateBestLevel();
   log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
   render();
 }
@@ -124,8 +161,6 @@ function getValidMoves(piece) {
   if (piece.type === 'Paladin') { addJumps(knightJumps); addJumps(kingJumps); }
   if (piece.type === 'Archbishop') { addJumps(knightJumps); addSlides(1,1); addSlides(1,-1); addSlides(-1,1); addSlides(-1,-1); }
   if (piece.type === 'Chancellor') { addJumps(knightJumps); addSlides(1,0); addSlides(-1,0); addSlides(0,1); addSlides(0,-1); }
-  
-  // Player-only perks
   if (piece.team === 'player' && gameState.perks.includes('agile')) addJumps(kingJumps);
 
   return moves.filter((v,i,a) => a.findIndex(t => (t.x === v.x && t.y === v.y)) === i);
@@ -148,13 +183,16 @@ function handleCellClick(x, y) {
 function movePiece(id, tx, ty) {
   const piece = gameState.pieces.find(p => p.id === id);
   let killedEnemy = false, moveWasCapture = false;
+  let multiKillCount = 0;
   
+  if (piece.team === 'player') gameState.levelTurnCount++; // Track turns for efficiency
+
   const tgtIdx = gameState.pieces.findIndex(p => p.x === tx && p.y === ty);
   if (tgtIdx !== -1) {
     const cap = gameState.pieces[tgtIdx];
     gameState.pieces.splice(tgtIdx, 1);
-    if (cap.team === 'player') { log("YOU DIED."); document.getElementById('board').classList.add('shake'); render(); return; }
-    killedEnemy = true; moveWasCapture = true; shakeScreen();
+    if (cap.team === 'player') { log("YOU DIED. Final Score: " + gameState.score); document.getElementById('board').classList.add('shake'); render(); return; }
+    killedEnemy = true; moveWasCapture = true; multiKillCount++; shakeScreen();
   }
 
   piece.x = tx; piece.y = ty;
@@ -163,19 +201,27 @@ function movePiece(id, tx, ty) {
     piece.type = 'Queen'; log("A Pawn promoted to a Queen!"); shakeScreen();
   }
 
-  // Pure destruction. No exceptions, no armor.
   if (piece.team === 'player') {
     if (gameState.perks.includes('explosive')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}].forEach(adj => {
         const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-        if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; shakeScreen(); }
+        if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; multiKillCount++; shakeScreen(); }
       });
     }
     if (moveWasCapture && gameState.perks.includes('cleave')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
         const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-        if (idx !== -1) { gameState.pieces.splice(idx, 1); shakeScreen(); }
+        if (idx !== -1) { gameState.pieces.splice(idx, 1); multiKillCount++; shakeScreen(); }
       });
+    }
+    
+    // Process Points
+    if (multiKillCount > 0) {
+        addScore(10 * multiKillCount); // Base Kill Points
+        if (multiKillCount > 1) {
+            addScore(20, true); // AoE Multi-kill Bonus!
+            log(`MULTI-KILL! +20 Pts`);
+        }
     }
   }
 
@@ -183,8 +229,14 @@ function movePiece(id, tx, ty) {
 
   if (piece.team === 'player') {
     if (gameState.pieces.filter(p => p.team === 'enemy').length === 0) {
-      log("Wave Cleared!"); gameState.level++;
-      setTimeout(() => { (gameState.level === 3 || gameState.level === 6) ? triggerDraft('evolution') : triggerDraft('gambit'); }, 800);
+      // Efficiency Scoring
+      let baseClear = 50;
+      let efficiencyBonus = Math.max(0, 100 - (gameState.levelTurnCount * 5));
+      addScore(baseClear + efficiencyBonus, true);
+      
+      log(`Wave Cleared! Turn Bonus: +${efficiencyBonus} pts`);
+      gameState.level++;
+      setTimeout(() => { (gameState.level === 3 || gameState.level === 6) ? triggerDraft('evolution') : triggerDraft('gambit'); }, 1200);
     } else {
       if (killedEnemy && gameState.perks.includes('bloodlust') && gameState.bloodlustUsed < 1) {
         log("BLOODLUST! 1 Extra Turn!"); gameState.bloodlustUsed++; gameState.turn = 'player';
@@ -200,40 +252,31 @@ function movePiece(id, tx, ty) {
   }
 }
 
-// --- NATURAL CHESS AI ENGINE ---
+// --- AI LOGIC (Unchanged, relies strictly on Chess movement) ---
 function playEnemyTurn() {
   const enemies = gameState.pieces.filter(p => p.team === 'enemy');
   const player = gameState.pieces.find(p => p.team === 'player');
   if (!player || !enemies.length) return;
 
-  // 1. Calculate player's threat map (where the player can attack next turn)
   const playerThreats = getValidMoves(player).map(m => `${m.x},${m.y}`);
-  
   let allPossibleMoves = [];
 
   const addEnemySlides = (enemy, dx, dy) => {
     let tx = enemy.x + dx, ty = enemy.y + dy;
     while(tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
-      if (tx === player.x && ty === player.y) {
-        allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: true }); break;
-      }
-      if (gameState.pieces.some(p => p.x === tx && p.y === ty)) break; // Blocked
+      if (tx === player.x && ty === player.y) { allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: true }); break; }
+      if (gameState.pieces.some(p => p.x === tx && p.y === ty)) break; 
       allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: false });
       tx += dx; ty += dy;
     }
   };
 
   enemies.forEach(enemy => {
-    // Generate legal moves strictly based on chess rules
     if (enemy.type === 'Pawn') {
       const fy = enemy.y + 1;
       if (fy < gameState.board.height) {
-        if (!gameState.pieces.some(p => p.x === enemy.x && p.y === fy)) {
-          allPossibleMoves.push({ id: enemy.id, x: enemy.x, y: fy, isLethal: false }); // March forward
-        }
-        if (player.y === fy && (player.x === enemy.x - 1 || player.x === enemy.x + 1)) {
-          allPossibleMoves.push({ id: enemy.id, x: player.x, y: fy, isLethal: true }); // Diagonal capture
-        }
+        if (!gameState.pieces.some(p => p.x === enemy.x && p.y === fy)) allPossibleMoves.push({ id: enemy.id, x: enemy.x, y: fy, isLethal: false }); 
+        if (player.y === fy && (player.x === enemy.x - 1 || player.x === enemy.x + 1)) allPossibleMoves.push({ id: enemy.id, x: player.x, y: fy, isLethal: true }); 
       }
     } else if (enemy.type === 'Queen') {
       [{dx: 0,dy: 1},{dx: 1,dy: 0},{dx: 0,dy: -1},{dx: -1,dy: 0},{dx: 1,dy: 1},{dx: 1,dy: -1},{dx: -1,dy: -1},{dx: -1,dy: 1}].forEach(d => addEnemySlides(enemy, d.dx, d.dy));
@@ -244,41 +287,27 @@ function playEnemyTurn() {
     }
   });
 
-  // 2. Evaluate Moves
   if (allPossibleMoves.length > 0) {
-    // Immediate Win Condition check
     const lethalMove = allPossibleMoves.find(m => m.isLethal);
-    if (lethalMove) {
-      movePiece(lethalMove.id, lethalMove.x, lethalMove.y);
-      return;
-    }
+    if (lethalMove) { movePiece(lethalMove.id, lethalMove.x, lethalMove.y); return; }
 
-    // Heuristic Scoring for natural play
-    let bestMove = null;
-    let highestScore = -Infinity;
-
+    let bestMove = null, highestScore = -Infinity;
     allPossibleMoves.forEach(move => {
       let score = 0;
-      
-      // Bonus for moving out of the player's attack line
       const currentlyThreatened = playerThreats.includes(`${gameState.pieces.find(p=>p.id===move.id).x},${gameState.pieces.find(p=>p.id===move.id).y}`);
       const moveIsSafe = !playerThreats.includes(`${move.x},${move.y}`);
       
-      if (currentlyThreatened && moveIsSafe) score += 50; // High priority to escape capture
-      if (!currentlyThreatened && !moveIsSafe) score -= 100; // Do not walk into capture
-
-      // Distance to player (closer is better, keeps pressure on)
-      const distance = Math.abs(player.x - move.x) + Math.abs(player.y - move.y);
-      score -= distance; 
+      if (currentlyThreatened && moveIsSafe) score += 50; 
+      if (!currentlyThreatened && !moveIsSafe) score -= 100; 
+      score -= (Math.abs(player.x - move.x) + Math.abs(player.y - move.y)); 
 
       if (score > highestScore) { highestScore = score; bestMove = move; }
-      else if (score === highestScore && Math.random() > 0.5) { bestMove = move; } // Randomize ties
+      else if (score === highestScore && Math.random() > 0.5) { bestMove = move; } 
     });
 
     if (bestMove) { movePiece(bestMove.id, bestMove.x, bestMove.y); return; }
   }
-  
-  gameState.turn = 'player'; // If truly trapped, skip turn
+  gameState.turn = 'player'; 
 }
 
 function render() {
@@ -320,6 +349,33 @@ function shakeScreen() {
 }
 
 function log(msg) { document.getElementById('message-log').textContent = msg; }
+
+// --- UI & MODAL BINDINGS ---
 document.getElementById('reset-btn').addEventListener('click', initGame);
 
+const modal = document.getElementById('help-modal');
+document.getElementById('help-btn').addEventListener('click', () => modal.style.display = 'flex');
+document.getElementById('close-modal').addEventListener('click', () => modal.style.display = 'none');
+window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+// --- PWA INSTALL HOOK ---
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-btn').style.display = 'block';
+});
+
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      document.getElementById('install-btn').style.display = 'none';
+    }
+    deferredPrompt = null;
+  }
+});
+
+updateHUD();
 initGame();
