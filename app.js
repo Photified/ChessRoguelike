@@ -5,7 +5,7 @@ let gameState = {
   pieces: [],
   selectedPieceId: null,
   validMoves: [],
-  turn: 'player' // Tracks whose turn it is
+  turn: 'player' 
 };
 
 const pieceSymbols = { Knight: '♞', Pawn: '♟', King: '♚' };
@@ -16,11 +16,9 @@ function initLevel() {
   gameState.selectedPieceId = null;
   gameState.validMoves = [];
   
-  // As levels go up, the board can grow!
   if (gameState.level === 3) gameState.board = { width: 6, height: 6 };
   if (gameState.level === 5) gameState.board = { width: 7, height: 7 };
 
-  // Spawn Player at the bottom center
   const playerStartX = Math.floor(gameState.board.width / 2);
   const playerStartY = gameState.board.height - 1;
 
@@ -28,14 +26,11 @@ function initLevel() {
     { id: 'player', type: 'Knight', team: 'player', x: playerStartX, y: playerStartY }
   ];
 
-  // Procedurally spawn enemies based on the level
-  const enemyCount = gameState.level + 1; // Level 1 = 2 enemies, Level 2 = 3 enemies, etc.
+  const enemyCount = gameState.level + 1; 
   for (let i = 0; i < enemyCount; i++) {
-    // Randomize enemy positions in the top half of the board
     let ex = Math.floor(Math.random() * gameState.board.width);
     let ey = Math.floor(Math.random() * Math.floor(gameState.board.height / 2));
     
-    // Make sure we don't spawn two enemies on the same square
     while (gameState.pieces.some(p => p.x === ex && p.y === ey)) {
         ex = Math.floor(Math.random() * gameState.board.width);
         ey = Math.floor(Math.random() * Math.floor(gameState.board.height / 2));
@@ -75,7 +70,7 @@ function getValidMoves(piece) {
 }
 
 function handleCellClick(x, y) {
-  if (gameState.turn !== 'player') return; // Ignore clicks if it's not the player's turn
+  if (gameState.turn !== 'player') return;
 
   const clickedPiece = gameState.pieces.find(p => p.x === x && p.y === y);
 
@@ -101,29 +96,25 @@ function handleCellClick(x, y) {
 function movePiece(pieceId, targetX, targetY) {
   const piece = gameState.pieces.find(p => p.id === pieceId);
   
-  // Handle captures
   const targetIndex = gameState.pieces.findIndex(p => p.x === targetX && p.y === targetY);
   if (targetIndex !== -1) {
     const capturedPiece = gameState.pieces[targetIndex];
     gameState.pieces.splice(targetIndex, 1);
     
     if (capturedPiece.team === 'player') {
-        logMessage("GAME OVER! Your Knight was captured.");
+        document.getElementById('message-log').innerHTML = `<span class="game-over-text">GAME OVER! Your Knight was captured.</span>`;
         render();
-        return; // Halt the game loop
+        return; 
     }
   }
 
-  // Update location
   piece.x = targetX;
   piece.y = targetY;
 
-  // Clear selection
   gameState.selectedPieceId = null;
   gameState.validMoves = [];
   render();
 
-  // Check Game State Progression
   if (piece.team === 'player') {
     const enemiesLeft = gameState.pieces.filter(p => p.team === 'enemy').length;
     if (enemiesLeft === 0) {
@@ -131,41 +122,57 @@ function movePiece(pieceId, targetX, targetY) {
         gameState.level++;
         setTimeout(initLevel, 1500);
     } else {
-        // Pass turn to enemies
         gameState.turn = 'enemy';
-        setTimeout(playEnemyTurn, 500); // 500ms delay so it feels like the computer is "thinking"
+        setTimeout(playEnemyTurn, 400); 
     }
   } else {
-    // Enemy finished moving, pass back to player
     gameState.turn = 'player';
   }
 }
 
-// --- 4. Enemy AI ---
+// --- 4. STRICT CHESS AI (Pawns act like Pawns) ---
 function playEnemyTurn() {
     const enemies = gameState.pieces.filter(p => p.team === 'enemy');
     const player = gameState.pieces.find(p => p.team === 'player');
     
     if (!player || enemies.length === 0) return;
 
-    // Super simple AI: Randomly pick one enemy to move 1 square towards the player
-    const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
-    
-    let moveX = randomEnemy.x;
-    let moveY = randomEnemy.y;
+    let possibleMoves = [];
 
-    if (randomEnemy.x < player.x) moveX++;
-    else if (randomEnemy.x > player.x) moveX--;
-    else if (randomEnemy.y < player.y) moveY++;
-    else if (randomEnemy.y > player.y) moveY--;
+    // Evaluate valid chess moves for every enemy on the board
+    enemies.forEach(enemy => {
+        if (enemy.type === 'Pawn') {
+            // Enemy Pawns move DOWN the board (y + 1)
+            const forwardY = enemy.y + 1;
+            
+            // If they reach the bottom of the board, they get stuck
+            if (forwardY >= gameState.board.height) return;
 
-    // Make sure they don't step on another enemy
-    const isOccupied = gameState.pieces.some(p => p.team === 'enemy' && p.x === moveX && p.y === moveY);
-    
-    if (!isOccupied) {
-        movePiece(randomEnemy.id, moveX, moveY);
+            // 1. Check for diagonal captures against the player
+            const canCaptureLeft = (player.x === enemy.x - 1 && player.y === forwardY);
+            const canCaptureRight = (player.x === enemy.x + 1 && player.y === forwardY);
+            
+            // 2. Check straight forward movement (square must be empty)
+            const isForwardEmpty = !gameState.pieces.some(p => p.x === enemy.x && p.y === forwardY);
+
+            if (canCaptureLeft) possibleMoves.push({ id: enemy.id, x: enemy.x - 1, y: forwardY, isCapture: true });
+            if (canCaptureRight) possibleMoves.push({ id: enemy.id, x: enemy.x + 1, y: forwardY, isCapture: true });
+            
+            // Only add forward movement if they don't have a capture available
+            if (isForwardEmpty) possibleMoves.push({ id: enemy.id, x: enemy.x, y: forwardY, isCapture: false });
+        }
+    });
+
+    if (possibleMoves.length > 0) {
+        // AI Logic: ALWAYS prioritize capturing the player if possible
+        const captures = possibleMoves.filter(m => m.isCapture);
+        const movePool = captures.length > 0 ? captures : possibleMoves;
+
+        // Pick a random valid move from the pool
+        const chosenMove = movePool[Math.floor(Math.random() * movePool.length)];
+        movePiece(chosenMove.id, chosenMove.x, chosenMove.y);
     } else {
-        // If blocked, just skip turn
+        // If all enemies are blocked or stuck, skip turn
         gameState.turn = 'player'; 
     }
 }
@@ -174,8 +181,8 @@ function playEnemyTurn() {
 function render() {
   const boardEl = document.getElementById('board');
   boardEl.innerHTML = '';
-  boardEl.style.gridTemplateColumns = `repeat(${gameState.board.width}, 50px)`;
-  boardEl.style.gridTemplateRows = `repeat(${gameState.board.height}, 50px)`;
+  boardEl.style.gridTemplateColumns = `repeat(${gameState.board.width}, 60px)`;
+  boardEl.style.gridTemplateRows = `repeat(${gameState.board.height}, 60px)`;
 
   for (let y = 0; y < gameState.board.height; y++) {
     for (let x = 0; x < gameState.board.width; x++) {

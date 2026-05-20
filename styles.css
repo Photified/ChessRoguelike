@@ -1,83 +1,106 @@
 :root {
-  --bg-color: #1a1a2e;
-  --panel-color: #16213e;
-  --text-color: #e94560;
-  --light-square: #ebd1a9;
-  --dark-square: #a37253;
-  --highlight-color: rgba(233, 69, 96, 0.6);
+  --bg-color: #121212;
+  --panel-color: #1e1e1e;
+  --text-color: #e0e0e0;
+  --accent-color: #739552;
+  --accent-hover: #5d7a42;
+  --danger-color: #c93430;
+  /* Classic Chess Board Colors */
+  --light-square: #ebecd0;
+  --dark-square: #739552;
+  --highlight-color: rgba(0, 0, 0, 0.2);
+  --move-dot: rgba(0, 0, 0, 0.15);
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  user-select: none; /* Prevents text highlighting when tapping fast */
+  user-select: none;
 }
 
 body {
   background-color: var(--bg-color);
-  color: #fff;
-  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   min-height: 100vh;
 }
 
 #app {
   width: 100%;
-  max-width: 600px;
+  max-width: 500px;
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  padding: 2rem 1rem;
 }
 
 header {
   text-align: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 h1 {
-  color: var(--text-color);
-  margin-bottom: 1rem;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 1.5rem;
+  color: #ffffff;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
 }
 
 button {
-  background-color: var(--text-color);
-  color: #fff;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-weight: bold;
+  background-color: var(--panel-color);
+  color: var(--text-color);
+  border: 1px solid #333;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  margin: 0 0.5rem;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background-color: #2a2a2a;
+  border-color: #444;
 }
 
 button:active {
-  transform: scale(0.95);
+  transform: translateY(2px);
 }
 
 #board-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-grow: 1;
+  width: 100%;
+  margin-bottom: 2rem;
 }
 
 #board {
   display: grid;
   gap: 0;
-  border: 4px solid var(--panel-color);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   background-color: var(--panel-color);
-  /* The dynamic inline styles from JS will override grid-template columns/rows */
 }
 
 .cell {
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 2rem;
+  font-size: 3rem;
   cursor: pointer;
   position: relative;
 }
@@ -85,27 +108,46 @@ button:active {
 .cell.light { background-color: var(--light-square); }
 .cell.dark { background-color: var(--dark-square); }
 
+/* The dot for valid moves */
 .cell.valid-move::after {
   content: '';
   position: absolute;
-  width: 20px;
-  height: 20px;
-  background-color: var(--highlight-color);
+  width: 25%;
+  height: 25%;
+  background-color: var(--move-dot);
   border-radius: 50%;
 }
 
 .piece {
   z-index: 2;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  /* Make unicode pieces look crisp and native */
+  line-height: 1;
 }
 
-.piece.player { color: #fff; }
-.piece.enemy { color: #000; }
+/* White Player Piece Styling */
+.piece.player { 
+  color: #ffffff; 
+  text-shadow: 0 2px 2px rgba(0,0,0,0.6), 0 0 1px #000;
+}
+
+/* Black Enemy Piece Styling */
+.piece.enemy { 
+  color: #111111; 
+  text-shadow: 0 1px 1px rgba(255,255,255,0.4);
+}
 
 #message-log {
-  margin-top: 2rem;
   text-align: center;
   background: var(--panel-color);
   padding: 1rem;
   border-radius: 8px;
+  font-weight: 500;
+  border: 1px solid #333;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.game-over-text {
+  color: var(--danger-color);
+  font-weight: 700;
 }
