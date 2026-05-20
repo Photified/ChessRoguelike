@@ -266,11 +266,9 @@ function movePiece(id, tx, ty) {
         log(`MOMENTUM! (${gameState.momentumUsed}/${momLevel}) Quick step.`); 
         gameState.turn = 'player';
       } else {
-        gameState.turn = 'enemy'; 
-        gameState.momentumUsed = 0; 
-        gameState.bloodlustUsed = 0; 
-        setTimeout(playEnemyTurn, 100); 
-      }
+  gameState.turn = 'enemy'; 
+  setTimeout(playEnemyTurn, 100); 
+}
     }
   } else {
     gameState.turn = 'player';
