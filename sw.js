@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chessrl-v4'; 
+const CACHE_NAME = 'chessrl-v5'; 
 const ASSETS_TO_CACHE = [
   './', './index.html', './styles.css', './app.js', './manifest.json'
 ];
