@@ -7,56 +7,109 @@ let gameState = {
   validMoves: [],
   turn: 'player',
   perks: [],
+  playerType: 'Knight', // You start as a Knight, but can evolve!
   isDrafting: false
 };
 
-const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛' };
+const symbols = { 
+  Knight: '♞', Pawn: '♟', Queen: '♛', 
+  Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' 
+};
+
+// --- DRAFT POOLS ---
+const gambitPool = [
+  { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', desc: 'Extra turn immediately after a kill.' },
+  { id: 'explosive', icon: '💣', title: 'Explosive Landing', desc: 'Landing obliterates adjacent enemies.' },
+  { id: 'agile', icon: '⚡', title: 'Agile Steed', desc: 'Add 1-square King movement in all directions.' },
+  { id: 'cleave', icon: '🪓', title: 'Cleave', desc: 'Capturing an enemy also destroys all enemies adjacent to IT.' },
+  { id: 'momentum', icon: '💨', title: 'Momentum', desc: 'First non-capture move per turn grants an extra action.' }
+];
+
+const evolutionPool = [
+  { id: 'Paladin', icon: '🛡️', title: 'The Paladin', desc: 'Evolve! Moves as Knight + King.' },
+  { id: 'Archbishop', icon: '♗', title: 'The Archbishop', desc: 'Evolve! Moves as Knight + Bishop (infinite diagonals).' },
+  { id: 'Chancellor', icon: '♖', title: 'The Chancellor', desc: 'Evolve! Moves as Knight + Rook (infinite straights).' }
+];
 
 // --- FLOW CONTROL ---
 function initGame() {
   gameState.level = 1;
   gameState.board = { width: 5, height: 5 };
   gameState.perks = [];
-  triggerDraft(); // FUN START: Get overpowered immediately
+  gameState.playerType = 'Knight';
+  triggerDraft('gambit'); 
 }
 
-function triggerDraft() {
+function triggerDraft(type) {
   gameState.isDrafting = true;
-  document.getElementById('draft-title').textContent = `Level ${gameState.level} Draft! Pick a Perk:`;
+  const container = document.getElementById('draft-cards');
+  container.innerHTML = '';
+  
+  if (type === 'evolution') {
+    document.getElementById('draft-title').textContent = `Level ${gameState.level}: PIECE EVOLUTION!`;
+    // Show all 3 evolutions
+    evolutionPool.forEach(evo => {
+      container.innerHTML += `
+        <div class="card evolution" onclick="selectEvolution('${evo.id}')">
+          <h3>${evo.icon} ${evo.title}</h3>
+          <p>${evo.desc}</p>
+        </div>`;
+    });
+  } else {
+    document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose a Perk!`;
+    // Shuffle and pick 3 random gambits
+    const shuffled = [...gambitPool].sort(() => 0.5 - Math.random()).slice(0, 3);
+    shuffled.forEach(gambit => {
+      container.innerHTML += `
+        <div class="card" onclick="selectGambit('${gambit.id}')">
+          <h3>${gambit.icon} ${gambit.title}</h3>
+          <p>${gambit.desc}</p>
+        </div>`;
+    });
+  }
   document.getElementById('draft-screen').style.display = 'flex';
 }
 
 window.selectGambit = function(perk) {
   if (!gameState.perks.includes(perk)) gameState.perks.push(perk);
+  finishDraft();
+};
+
+window.selectEvolution = function(newType) {
+  gameState.playerType = newType;
+  finishDraft();
+};
+
+function finishDraft() {
   document.getElementById('draft-screen').style.display = 'none';
   gameState.isDrafting = false;
   startLevel();
-};
+}
 
 function startLevel() {
   gameState.turn = 'player';
   gameState.selectedPieceId = null;
   gameState.validMoves = [];
   
+  // Board Expansions
   if (gameState.level === 3) gameState.board = { width: 6, height: 6 };
   if (gameState.level === 5) gameState.board = { width: 7, height: 7 };
 
   const px = Math.floor(gameState.board.width / 2);
   const py = gameState.board.height - 1;
-  gameState.pieces = [{ id: 'player', type: 'Knight', team: 'player', x: px, y: py }];
+  gameState.pieces = [{ id: 'player', type: gameState.playerType, team: 'player', x: px, y: py }];
 
-  // Enemy Spawning Logic
+  // Enemy Spawning
   const pawnCount = gameState.level + 2; 
   for (let i = 0; i < pawnCount; i++) {
     spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
   }
+  if (gameState.level >= 2) spawnEnemy('Queen', 2);
+  if (gameState.level >= 4) spawnEnemy('Queen', 2);
 
-  // Level 2+ introduces relentless Queens
-  if (gameState.level >= 2) {
-    spawnEnemy('Queen', 2);
-  }
-
-  log("Your turn! Annihilate them.");
+  let msg = `Level ${gameState.level} Start!`;
+  if (gameState.level === 3 || gameState.level === 5) msg += " BOARD EXPANDED!";
+  log(msg);
   render();
 }
 
@@ -70,23 +123,11 @@ function spawnEnemy(type, maxY) {
   gameState.pieces.push({ id: Math.random().toString(36).substr(2, 9), type: type, team: 'enemy', x: ex, y: ey });
 }
 
-// --- PLAYER LOGIC ---
+// --- PLAYER MOVEMENT CALCULATOR ---
 function getValidMoves(piece) {
-  const moves = [];
-  if (piece.type === 'Knight') {
-    // Standard L-Jumps
-    let jumps = [
-      {dx: 1, dy: 2}, {dx: 2, dy: 1}, {dx: 2, dy: -1}, {dx: 1, dy: -2},
-      {dx: -1, dy: -2}, {dx: -2, dy: -1}, {dx: -2, dy: 1}, {dx: -1, dy: 2}
-    ];
-    // PERK: Agile Steed (Adds King movement!)
-    if (gameState.perks.includes('agile')) {
-      jumps = jumps.concat([
-        {dx: 0, dy: 1}, {dx: 1, dy: 0}, {dx: 0, dy: -1}, {dx: -1, dy: 0},
-        {dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: -1}, {dx: -1, dy: 1}
-      ]);
-    }
-
+  let moves = [];
+  
+  const addJumps = (jumps) => {
     jumps.forEach(j => {
       const tx = piece.x + j.dx, ty = piece.y + j.dy;
       if (tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
@@ -94,8 +135,37 @@ function getValidMoves(piece) {
         if (!tgt || tgt.team !== piece.team) moves.push({x: tx, y: ty});
       }
     });
-  }
-  return moves;
+  };
+
+  const addSlides = (dx, dy) => {
+    let tx = piece.x + dx, ty = piece.y + dy;
+    while(tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
+      const tgt = gameState.pieces.find(p => p.x === tx && p.y === ty);
+      if (!tgt) { moves.push({x: tx, y: ty}); } 
+      else {
+        if (tgt.team !== piece.team) moves.push({x: tx, y: ty});
+        break; // Stop sliding if we hit a piece
+      }
+      tx += dx; ty += dy;
+    }
+  };
+
+  const knightJumps = [{dx: 1, dy: 2}, {dx: 2, dy: 1}, {dx: 2, dy: -1}, {dx: 1, dy: -2}, {dx: -1, dy: -2}, {dx: -2, dy: -1}, {dx: -2, dy: 1}, {dx: -1, dy: 2}];
+  const kingJumps = [{dx: 0, dy: 1}, {dx: 1, dy: 0}, {dx: 0, dy: -1}, {dx: -1, dy: 0}, {dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: -1}, {dx: -1, dy: 1}];
+
+  // Base Class Moves
+  if (piece.type === 'Knight') addJumps(knightJumps);
+  
+  // Evolutions
+  if (piece.type === 'Paladin') { addJumps(knightJumps); addJumps(kingJumps); }
+  if (piece.type === 'Archbishop') { addJumps(knightJumps); addSlides(1,1); addSlides(1,-1); addSlides(-1,1); addSlides(-1,-1); }
+  if (piece.type === 'Chancellor') { addJumps(knightJumps); addSlides(1,0); addSlides(-1,0); addSlides(0,1); addSlides(0,-1); }
+
+  // Perks
+  if (gameState.perks.includes('agile') && piece.team === 'player') addJumps(kingJumps);
+
+  // Filter exact duplicates
+  return moves.filter((v,i,a) => a.findIndex(t => (t.x === v.x && t.y === v.y)) === i);
 }
 
 function handleCellClick(x, y) {
@@ -120,8 +190,9 @@ function handleCellClick(x, y) {
 function movePiece(id, tx, ty) {
   const piece = gameState.pieces.find(p => p.id === id);
   let killedEnemy = false;
+  let moveWasCapture = false;
   
-  // Base Capture
+  // 1. Check Capture
   const tgtIdx = gameState.pieces.findIndex(p => p.x === tx && p.y === ty);
   if (tgtIdx !== -1) {
     const cap = gameState.pieces[tgtIdx];
@@ -131,46 +202,65 @@ function movePiece(id, tx, ty) {
       document.getElementById('board').classList.add('shake');
       render(); return; 
     }
-    killedEnemy = true;
+    killedEnemy = true; moveWasCapture = true;
     shakeScreen();
   }
 
+  // 2. Move Piece
   piece.x = tx; piece.y = ty;
 
-  // PERK: Explosive Landing
-  if (piece.team === 'player' && gameState.perks.includes('explosive')) {
-    const adjs = [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}];
-    adjs.forEach(adj => {
-      const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-      if (idx !== -1) {
-        gameState.pieces.splice(idx, 1);
-        killedEnemy = true;
-        shakeScreen();
-      }
-    });
+  // 3. ENEMY LOGIC: Instant Pawn Promotion (Triggers the moment they land)
+  if (piece.team === 'enemy' && piece.type === 'Pawn' && piece.y === gameState.board.height - 1) {
+    piece.type = 'Queen';
+    log("A Pawn instantly promoted to a Queen!");
+    shakeScreen();
+  }
+
+  // 4. PLAYER PERKS
+  if (piece.team === 'player') {
+    // Explosive
+    if (gameState.perks.includes('explosive')) {
+      const adjs = [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}];
+      adjs.forEach(adj => {
+        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
+        if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; shakeScreen(); }
+      });
+    }
+    // Cleave
+    if (moveWasCapture && gameState.perks.includes('cleave')) {
+      const adjs = [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}];
+      adjs.forEach(adj => {
+        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
+        if (idx !== -1) { gameState.pieces.splice(idx, 1); shakeScreen(); }
+      });
+    }
   }
 
   gameState.selectedPieceId = null; 
   gameState.validMoves = [];
   render();
 
-  // Turn Progression
+  // 5. TURN PROGRESSION
   if (piece.team === 'player') {
     if (gameState.pieces.filter(p => p.team === 'enemy').length === 0) {
       log("Wave Cleared!");
       gameState.level++;
       setTimeout(() => {
-        if(gameState.level % 2 !== 0) triggerDraft(); // Draft every odd level
-        else startLevel();
+        if (gameState.level === 3 || gameState.level === 6) triggerDraft('evolution');
+        else triggerDraft('gambit'); 
       }, 800);
     } else {
-      // PERK: Bloodlust
       if (killedEnemy && gameState.perks.includes('bloodlust')) {
         log("BLOODLUST! Extra Turn!");
         gameState.turn = 'player';
+      } else if (!killedEnemy && gameState.perks.includes('momentum') && !gameState.momentumUsedThisTurn) {
+        log("MOMENTUM! Quick step.");
+        gameState.momentumUsedThisTurn = true;
+        gameState.turn = 'player';
       } else {
         gameState.turn = 'enemy';
-        setTimeout(playEnemyTurn, 200); // Super fast AI response
+        gameState.momentumUsedThisTurn = false;
+        setTimeout(playEnemyTurn, 200); 
       }
     }
   } else {
@@ -189,12 +279,8 @@ function playEnemyTurn() {
   enemies.forEach(enemy => {
     if (enemy.type === 'Pawn') {
       const fy = enemy.y + 1;
-      // PROMOTION
-      if (fy >= gameState.board.height) {
-        enemy.type = 'Queen';
-        log("Pawn Promoted!");
-        render(); return;
-      }
+      if (fy >= gameState.board.height) return; // Failsafe, shouldn't happen due to instant promo
+      
       const canCapL = (player.x === enemy.x - 1 && player.y === fy);
       const canCapR = (player.x === enemy.x + 1 && player.y === fy);
       const isFwdEmpty = !gameState.pieces.some(p => p.x === enemy.x && p.y === fy);
@@ -204,7 +290,6 @@ function playEnemyTurn() {
       if (isFwdEmpty) moves.push({ id: enemy.id, x: enemy.x, y: fy, isCap: false });
     } 
     else if (enemy.type === 'Queen') {
-      // Queens relentlessly hunt you 1 step at a time
       let qx = enemy.x, qy = enemy.y;
       if (player.x > enemy.x) qx++; else if (player.x < enemy.x) qx--;
       if (player.y > enemy.y) qy++; else if (player.y < enemy.y) qy--;
@@ -224,7 +309,7 @@ function playEnemyTurn() {
   }
 }
 
-// --- RENDER & UTILS ---
+// --- RENDERING ---
 function render() {
   const b = document.getElementById('board');
   b.innerHTML = '';

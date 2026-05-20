@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ChessRL: Roguelike</title>
+  <title>ChessRL: Evolution</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
   <meta name="theme-color" content="#1e1e1e">
@@ -27,21 +27,9 @@
   </div>
 
   <div id="draft-screen" style="display: none;">
-    <h2 id="draft-title">Choose a Power-Up!</h2>
-    <div class="draft-cards">
-      <div class="card" onclick="selectGambit('bloodlust')">
-        <h3>🩸 Bloodlust</h3>
-        <p>Chain kills! Capturing an enemy gives you an instant extra turn.</p>
+    <h2 id="draft-title">Choose your path!</h2>
+    <div id="draft-cards" class="draft-cards">
       </div>
-      <div class="card" onclick="selectGambit('explosive')">
-        <h3>💣 Explosive Landing</h3>
-        <p>Landing obliterates any enemies on adjacent squares instantly.</p>
-      </div>
-      <div class="card" onclick="selectGambit('agile')">
-        <h3>⚡ Agile Steed</h3>
-        <p>Your Knight can now also move 1 square in any direction like a King.</p>
-      </div>
-    </div>
   </div>
 
   <script src="app.js"></script>
