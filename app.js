@@ -566,12 +566,33 @@ function render() {
   b.style.gridTemplateColumns = `repeat(${gameState.board.width}, 1fr)`;
   b.style.gridTemplateRows = `repeat(${gameState.board.height}, 1fr)`;
 
+  let nextRingToCollapse = -1;
+  const enemyCount = gameState.pieces.filter(p => p.team === 'enemy').length;
+  
+  if (enemyCount === 1) {
+    if (!gameState.suddenDeathActive && gameState.turnsSinceCapture === 4) {
+      nextRingToCollapse = 0; 
+    } else if (gameState.suddenDeathActive && gameState.suddenDeathTimer === 2) {
+      nextRingToCollapse = gameState.suddenDeathRing + 1; 
+    }
+  }
+
   for (let y = 0; y < gameState.board.height; y++) {
     for (let x = 0; x < gameState.board.width; x++) {
       const cell = document.createElement('div');
       cell.className = `cell ${(x+y)%2===0 ? 'light' : 'dark'}`;
       if (gameState.validMoves.some(m => m.x === x && m.y === y)) cell.classList.add('valid-move');
-      if (gameState.voidSquares.some(v => v.x === x && v.y === y)) cell.classList.add('void');
+      
+      if (gameState.voidSquares.some(v => v.x === x && v.y === y)) {
+        cell.classList.add('void');
+      } else if (nextRingToCollapse !== -1) {
+        const r = nextRingToCollapse;
+        const w = gameState.board.width;
+        const h = gameState.board.height;
+        if (x <= r || x >= w - 1 - r || y <= r || y >= h - 1 - r) {
+          cell.classList.add('void-warning');
+        }
+      }
       
       const piece = gameState.pieces.find(p => p.x === x && p.y === y);
       if (piece) {
