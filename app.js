@@ -13,7 +13,8 @@ let gameState = {
 let bestScore = parseInt(localStorage.getItem('chessrl_bestscore')) || 0;
 let bestLevel = parseInt(localStorage.getItem('chessrl_bestlevel')) || 1;
 
-const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Archbishop: '♗', Chancellor: '♖' };
+// Added King symbol for the Boss
+const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Archbishop: '♗', Chancellor: '♖', King: '♚' };
 
 // --- LEVEL-UP GAMBIT POOL ---
 const gambitPool = [
@@ -95,8 +96,6 @@ function triggerDraft(type) {
     shuffled.forEach(gambit => {
       const currentLvl = getPerkLevel(gambit.id);
       const nextLvl = currentLvl + 1;
-      
-      // Added a line break and scaled down the text slightly for the level indicator
       const titleSuffix = gambit.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${nextLvl})</span>` : '';
       
       container.innerHTML += `
@@ -122,21 +121,39 @@ function startLevel() {
   gameState.turn = 'player'; gameState.selectedPieceId = null; gameState.validMoves = [];
   gameState.bloodlustUsed = 0; gameState.momentumUsed = 0; gameState.levelTurnCount = 0;
 
+  const isBossLevel = gameState.level % 5 === 0;
+
   if (gameState.level === 3) gameState.board = { width: 6, height: 6 };
-  if (gameState.level === 5) gameState.board = { width: 7, height: 7 };
+  if (gameState.level >= 5) gameState.board = { width: 7, height: 7 };
 
   const px = Math.floor(gameState.board.width / 2), py = gameState.board.height - 1;
   gameState.pieces = [{ id: 'player', type: gameState.playerType, team: 'player', x: px, y: py }];
 
-  const pawnCount = gameState.level + 1; 
-  for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
-  if (gameState.level >= 2) spawnEnemy('Queen', 2);
-  if (gameState.level >= 3) spawnEnemy('Rook', 3); 
-  if (gameState.level >= 4) spawnEnemy('Bishop', 3); 
-  if (gameState.level >= 5) spawnEnemy('Queen', 2);
+  if (isBossLevel) {
+    // Boss Health Logic: Lvl 5 = 3HP, Lvl 10 = 5HP, Lvl 15 = 7HP, etc.
+    const bossHp = 3 + (Math.floor(gameState.level / 5) - 1) * 2;
+    const bx = Math.floor(gameState.board.width / 2);
+    const by = 0;
+    
+    // Spawn King Boss
+    gameState.pieces.push({ id: 'boss', type: 'King', team: 'enemy', x: bx, y: by, hp: bossHp, isBoss: true });
+    // Spawn Royal Guards
+    gameState.pieces.push({ id: 'guard1', type: 'Rook', team: 'enemy', x: Math.max(0, bx - 1), y: by });
+    gameState.pieces.push({ id: 'guard2', type: 'Rook', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
+    
+    log(`WARNING: Boss Wave! Defeat the King!`);
+  } else {
+    // Standard Enemy Wave
+    const pawnCount = gameState.level + 1; 
+    for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
+    if (gameState.level >= 2) spawnEnemy('Queen', 2);
+    if (gameState.level >= 3) spawnEnemy('Rook', 3); 
+    if (gameState.level >= 4) spawnEnemy('Bishop', 3); 
+    
+    log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
+  }
 
   updateBestLevel();
-  log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
   render();
 }
 
@@ -206,30 +223,75 @@ function movePiece(id, tx, ty) {
   const tgtIdx = gameState.pieces.findIndex(p => p.x === tx && p.y === ty);
   if (tgtIdx !== -1) {
     const cap = gameState.pieces[tgtIdx];
-    gameState.pieces.splice(tgtIdx, 1);
+    
     if (cap.team === 'player') { log("YOU DIED. Final Score: " + gameState.score); document.getElementById('board').classList.add('shake'); render(); return; }
-    killedEnemy = true; moveWasCapture = true; multiKillCount++; shakeScreen();
+    
+    // --- BOSS ENCOUNTER LOGIC ---
+    if (cap.isBoss && cap.hp > 1) {
+      const originalBossX = cap.x, originalBossY = cap.y;
+      
+      // Temporarily set player to boss's square to map line-of-sight
+      piece.x = tx; piece.y = ty;
+      cap.x = -1; cap.y = -1; 
+      
+      const playerThreats = getValidMoves(piece).map(m => `${m.x},${m.y}`);
+      let validKnockbacks = [];
+      
+      // Look for safe surrounding squares from Boss's original spot
+      [{dx:0,dy:1},{dx:1,dy:0},{dx:0,dy:-1},{dx:-1,dy:0},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:-1},{dx:-1,dy:1}].forEach(d => {
+          const nx = originalBossX + d.dx, ny = originalBossY + d.dy;
+          if (nx >= 0 && nx < gameState.board.width && ny >= 0 && ny < gameState.board.height) {
+              if (!gameState.pieces.some(p => p.x === nx && p.y === ny && p.id !== cap.id)) {
+                  if (!playerThreats.includes(`${nx},${ny}`)) {
+                      validKnockbacks.push({x: nx, y: ny});
+                  }
+              }
+          }
+      });
+      
+      if (validKnockbacks.length > 0) {
+          // Normal Damage & Knockback
+          const safeSpot = validKnockbacks[Math.floor(Math.random() * validKnockbacks.length)];
+          cap.x = safeSpot.x; cap.y = safeSpot.y;
+          cap.hp -= 1;
+          log(`Direct Hit! Boss knocked to safety!`);
+          moveWasCapture = true; 
+          shakeScreen();
+      } else {
+          // Instant Checkmate!
+          cap.x = originalBossX; cap.y = originalBossY; // restore for splice
+          gameState.pieces.splice(gameState.pieces.findIndex(p => p.id === cap.id), 1);
+          killedEnemy = true; moveWasCapture = true; multiKillCount++;
+          log(`CHECKMATE! The King falls! +100 Pts`);
+          addScore(100, true);
+          shakeScreen();
+      }
+    } else {
+      // Normal Kill or Final Boss HP Hit
+      gameState.pieces.splice(tgtIdx, 1);
+      killedEnemy = true; moveWasCapture = true; multiKillCount++; shakeScreen();
+      piece.x = tx; piece.y = ty;
+    }
+  } else {
+    piece.x = tx; piece.y = ty;
   }
 
-  piece.x = tx; piece.y = ty;
-
+  // Pawn Promotion
   if (piece.team === 'enemy' && piece.type === 'Pawn' && piece.y === gameState.board.height - 1) {
     piece.type = 'Queen'; log("A Pawn promoted to a Queen!"); shakeScreen();
   }
 
+  // Cleave Logic
   if (piece.team === 'player') {
     const cleaveLvl = getPerkLevel('cleave');
-    
-    // Level 2 triggers on any move, Level 1 triggers only on capture
     if (cleaveLvl >= 2 || (cleaveLvl === 1 && moveWasCapture)) {
-      [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
-       {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
-        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
+      [{x: piece.x+1, y: piece.y}, {x: piece.x-1, y: piece.y}, {x: piece.x, y: piece.y+1}, {x: piece.x, y: piece.y-1}, 
+       {x: piece.x+1, y: piece.y+1}, {x: piece.x-1, y: piece.y-1}, {x: piece.x+1, y: piece.y-1}, {x: piece.x-1, y: piece.y+1}].forEach(adj => {
+        // Do not instantly cleave the boss
+        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y && !p.isBoss);
         if (idx !== -1) { 
           gameState.pieces.splice(idx, 1); 
-          killedEnemy = true; 
-          multiKillCount++; 
-          shakeScreen(); 
+          killedEnemy = true; multiKillCount++; shakeScreen(); 
         }
       });
     }
@@ -252,7 +314,6 @@ function movePiece(id, tx, ty) {
       gameState.level++;
       setTimeout(() => { (gameState.level === 3 || gameState.level === 6) ? triggerDraft('evolution') : triggerDraft('gambit'); }, 1200);
     } else {
-      
       const blLevel = getPerkLevel('bloodlust');
       const momLevel = getPerkLevel('momentum');
 
@@ -305,6 +366,15 @@ function playEnemyTurn() {
       [{dx: 0,dy: 1},{dx: 1,dy: 0},{dx: 0,dy: -1},{dx: -1,dy: 0}].forEach(d => addEnemySlides(enemy, d.dx, d.dy));
     } else if (enemy.type === 'Bishop') {
       [{dx: 1,dy: 1},{dx: 1,dy: -1},{dx: -1,dy: -1},{dx: -1,dy: 1}].forEach(d => addEnemySlides(enemy, d.dx, d.dy));
+    } else if (enemy.type === 'King') {
+      // Allow the King Boss to move and attack
+      [{dx: 0,dy: 1},{dx: 1,dy: 0},{dx: 0,dy: -1},{dx: -1,dy: 0},{dx: 1,dy: 1},{dx: 1,dy: -1},{dx: -1,dy: -1},{dx: -1,dy: 1}].forEach(d => {
+        const nx = enemy.x + d.dx, ny = enemy.y + d.dy;
+        if (nx >= 0 && nx < gameState.board.width && ny >= 0 && ny < gameState.board.height) {
+          if (nx === player.x && ny === player.y) allPossibleMoves.push({ id: enemy.id, x: nx, y: ny, isLethal: true });
+          else if (!gameState.pieces.some(p => p.x === nx && p.y === ny)) allPossibleMoves.push({ id: enemy.id, x: nx, y: ny, isLethal: false });
+        }
+      });
     }
   });
 
@@ -338,7 +408,6 @@ function render() {
   const b = document.getElementById('board');
   b.innerHTML = '';
   
-  // Responsive grid rules
   b.style.gridTemplateColumns = `repeat(${gameState.board.width}, 1fr)`;
   b.style.gridTemplateRows = `repeat(${gameState.board.height}, 1fr)`;
 
@@ -352,7 +421,19 @@ function render() {
       if (piece) {
         const pEl = document.createElement('div');
         pEl.className = `piece ${piece.team}`;
-        pEl.textContent = symbols[piece.type];
+        
+        // Add visual boss class
+        if (piece.isBoss) pEl.classList.add('boss');
+        
+        let htmlContent = symbols[piece.type];
+        
+        // Render HP Exponent for Boss
+        if (piece.hp && piece.hp > 0) {
+          const superscripts = { 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+          htmlContent += `<span class="hp-indicator">${superscripts[piece.hp] || `^${piece.hp}`}</span>`;
+        }
+        
+        pEl.innerHTML = htmlContent;
         if (piece.id === gameState.selectedPieceId) pEl.style.transform = 'scale(1.3)';
         cell.appendChild(pEl);
       }
@@ -368,8 +449,6 @@ function render() {
     const p = gambitPool.find(g => g.id === perkId);
     if (p) {
       const lvl = getPerkLevel(perkId);
-      
-      // Also apply line break to the tray for consistency
       const titleSuffix = p.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${lvl})</span>` : '';
       tray.innerHTML += `<div class="active-perk-card"><h4>${p.icon} ${p.title}${titleSuffix}</h4><p>${p.getDesc(lvl)}</p></div>`;
     }
