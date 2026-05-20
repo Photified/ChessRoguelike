@@ -13,7 +13,7 @@ let gameState = {
 let bestScore = parseInt(localStorage.getItem('chessrl_bestscore')) || 0;
 let bestLevel = parseInt(localStorage.getItem('chessrl_bestlevel')) || 1;
 
-const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
+const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Archbishop: '♗', Chancellor: '♖' };
 
 // --- LEVEL-UP GAMBIT POOL ---
 const gambitPool = [
@@ -176,7 +176,6 @@ function getValidMoves(piece) {
   const kingJumps = [{dx: 0, dy: 1}, {dx: 1, dy: 0}, {dx: 0, dy: -1}, {dx: -1, dy: 0}, {dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: -1}, {dx: -1, dy: 1}];
 
   if (piece.type === 'Knight') addJumps(knightJumps);
-  if (piece.type === 'Paladin') { addJumps(knightJumps); addJumps(kingJumps); }
   if (piece.type === 'Archbishop') { addJumps(knightJumps); addSlides(1,1); addSlides(1,-1); addSlides(-1,1); addSlides(-1,-1); }
   if (piece.type === 'Chancellor') { addJumps(knightJumps); addSlides(1,0); addSlides(-1,0); addSlides(0,1); addSlides(0,-1); }
   if (piece.team === 'player' && gameState.perks.includes('agile')) addJumps(kingJumps);
