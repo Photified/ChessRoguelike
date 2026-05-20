@@ -4,6 +4,7 @@ let gameState = {
   selectedPieceId: null, validMoves: [], turn: 'player',
   perks: [], playerType: 'Knight', isDrafting: false,
   bloodlustUsed: 0,
+  momentumUsed: 0,
   score: 0,
   levelTurnCount: 0 
 };
@@ -14,12 +15,13 @@ let bestLevel = parseInt(localStorage.getItem('chessrl_bestlevel')) || 1;
 
 const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
 
+// --- NEW LEVEL-UP GAMBIT POOL ---
 const gambitPool = [
-  { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', desc: 'Once per round, gain an extra turn after a kill.' },
-  { id: 'explosive', icon: '💣', title: 'Explosive Landing', desc: 'Landing obliterates adjacent enemies (including diagonals).' },
-  { id: 'agile', icon: '⚡', title: 'Agile Steed', desc: 'Add 1-square King movement in all directions.' },
-  { id: 'cleave', icon: '🪓', title: 'Cleave', desc: 'Captures destroy all surrounding enemies.' },
-  { id: 'momentum', icon: '💨', title: 'Momentum', desc: 'First non-capture move per turn grants an extra action.' }
+  { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', maxLevel: 3, getDesc: (lvl) => `Gain an extra turn after a kill (Max ${lvl}/round).` },
+  { id: 'explosive', icon: '💣', title: 'Explosive Landing', maxLevel: 1, getDesc: () => `Landing obliterates adjacent enemies.` },
+  { id: 'agile', icon: '⚡', title: 'Agile Steed', maxLevel: 1, getDesc: () => `Add 1-square King movement in all directions.` },
+  { id: 'cleave', icon: '🪓', title: 'Cleave', maxLevel: 1, getDesc: () => `Captures destroy all surrounding enemies.` },
+  { id: 'momentum', icon: '💨', title: 'Momentum', maxLevel: 3, getDesc: (lvl) => `First non-capture move per turn grants an extra action (Max ${lvl}/round).` }
 ];
 
 const evolutionPool = [
@@ -27,6 +29,11 @@ const evolutionPool = [
   { id: 'Archbishop', icon: '♗', title: 'The Archbishop', desc: 'Evolve! Moves as Knight + Bishop.' },
   { id: 'Chancellor', icon: '♖', title: 'The Chancellor', desc: 'Evolve! Moves as Knight + Rook.' }
 ];
+
+// Helper function to check perk levels
+function getPerkLevel(id) {
+  return gameState.perks.filter(p => p === id).length;
+}
 
 function updateHUD() {
   document.getElementById('hud-level').textContent = gameState.level;
@@ -81,18 +88,28 @@ function triggerDraft(type) {
     });
   } else {
     document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose a Perk!`;
-    const availableGambits = gambitPool.filter(g => !gameState.perks.includes(g.id));
-    if (availableGambits.length === 0) { finishDraft(); return; }
+    
+    // Filter out perks that have hit their max level
+    const availableGambits = gambitPool.filter(g => getPerkLevel(g.id) < g.maxLevel);
+    if (availableGambits.length === 0) { finishDraft(); return; } // Skip draft if fully maxed
     
     const shuffled = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
     shuffled.forEach(gambit => {
-      container.innerHTML += `<div class="card" onclick="selectGambit('${gambit.id}')"><h3>${gambit.icon} ${gambit.title}</h3><p>${gambit.desc}</p></div>`;
+      const currentLvl = getPerkLevel(gambit.id);
+      const nextLvl = currentLvl + 1;
+      const titleSuffix = gambit.maxLevel > 1 ? ` <span style="color:#ffd700">(Lv ${nextLvl})</span>` : '';
+      
+      container.innerHTML += `
+        <div class="card" onclick="selectGambit('${gambit.id}')">
+          <h3>${gambit.icon} ${gambit.title}${titleSuffix}</h3>
+          <p>${gambit.getDesc(nextLvl)}</p>
+        </div>`;
     });
   }
   document.getElementById('draft-screen').style.display = 'flex';
 }
 
-window.selectGambit = function(perk) { if (!gameState.perks.includes(perk)) gameState.perks.push(perk); finishDraft(); };
+window.selectGambit = function(perk) { gameState.perks.push(perk); finishDraft(); };
 window.selectEvolution = function(newType) { gameState.playerType = newType; finishDraft(); };
 
 function finishDraft() {
@@ -103,7 +120,7 @@ function finishDraft() {
 
 function startLevel() {
   gameState.turn = 'player'; gameState.selectedPieceId = null; gameState.validMoves = [];
-  gameState.bloodlustUsed = 0; gameState.levelTurnCount = 0;
+  gameState.bloodlustUsed = 0; gameState.momentumUsed = 0; gameState.levelTurnCount = 0;
 
   if (gameState.level === 3) gameState.board = { width: 6, height: 6 };
   if (gameState.level === 5) gameState.board = { width: 7, height: 7 };
@@ -202,7 +219,6 @@ function movePiece(id, tx, ty) {
   }
 
   if (piece.team === 'player') {
-    // EXPLOSIVE: Now hits all 8 surrounding squares
     if (gameState.perks.includes('explosive')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
        {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
@@ -211,7 +227,6 @@ function movePiece(id, tx, ty) {
       });
     }
     
-    // CLEAVE: Hits all 8 surrounding squares, but ONLY if you captured a piece
     if (moveWasCapture && gameState.perks.includes('cleave')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
        {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
@@ -222,10 +237,7 @@ function movePiece(id, tx, ty) {
     
     if (multiKillCount > 0) {
         addScore(10 * multiKillCount); 
-        if (multiKillCount > 1) {
-            addScore(20, true); 
-            log(`MULTI-KILL! +20 Pts`);
-        }
+        if (multiKillCount > 1) { addScore(20, true); log(`MULTI-KILL! +20 Pts`); }
     }
   }
 
@@ -241,12 +253,23 @@ function movePiece(id, tx, ty) {
       gameState.level++;
       setTimeout(() => { (gameState.level === 3 || gameState.level === 6) ? triggerDraft('evolution') : triggerDraft('gambit'); }, 1200);
     } else {
-      if (killedEnemy && gameState.perks.includes('bloodlust') && gameState.bloodlustUsed < 1) {
-        log("BLOODLUST! 1 Extra Turn!"); gameState.bloodlustUsed++; gameState.turn = 'player';
-      } else if (!killedEnemy && gameState.perks.includes('momentum') && !gameState.momentumUsedThisTurn) {
-        log("MOMENTUM! Quick step."); gameState.momentumUsedThisTurn = true; gameState.turn = 'player';
+      
+      const blLevel = getPerkLevel('bloodlust');
+      const momLevel = getPerkLevel('momentum');
+
+      // Check for leveled-up combo triggers!
+      if (killedEnemy && blLevel > 0 && gameState.bloodlustUsed < blLevel) {
+        gameState.bloodlustUsed++; 
+        log(`BLOODLUST! (${gameState.bloodlustUsed}/${blLevel}) Extra Turn!`); 
+        gameState.turn = 'player';
+      } else if (!killedEnemy && momLevel > 0 && gameState.momentumUsed < momLevel) {
+        gameState.momentumUsed++; 
+        log(`MOMENTUM! (${gameState.momentumUsed}/${momLevel}) Quick step.`); 
+        gameState.turn = 'player';
       } else {
-        gameState.turn = 'enemy'; gameState.momentumUsedThisTurn = false; gameState.bloodlustUsed = 0; 
+        gameState.turn = 'enemy'; 
+        gameState.momentumUsed = 0; 
+        gameState.bloodlustUsed = 0; 
         setTimeout(playEnemyTurn, 100); 
       }
     }
@@ -309,7 +332,11 @@ function playEnemyTurn() {
 
     if (bestMove) { movePiece(bestMove.id, bestMove.x, bestMove.y); return; }
   }
+  
+  // Failsafe: if enemies are trapped, they skip their turn but we MUST reset the player's fatigue cooldowns
   gameState.turn = 'player'; 
+  gameState.momentumUsed = 0; 
+  gameState.bloodlustUsed = 0; 
 }
 
 function render() {
@@ -337,11 +364,17 @@ function render() {
     }
   }
   
+  // Render Active Perks Tray with Unique Grouping & Levels
   const tray = document.getElementById('active-perks');
   tray.innerHTML = '';
-  gameState.perks.forEach(perkId => {
+  const uniquePerks = [...new Set(gameState.perks)];
+  uniquePerks.forEach(perkId => {
     const p = gambitPool.find(g => g.id === perkId);
-    if (p) tray.innerHTML += `<div class="active-perk-card"><h4>${p.icon} ${p.title}</h4><p>${p.desc}</p></div>`;
+    if (p) {
+      const lvl = getPerkLevel(perkId);
+      const titleSuffix = p.maxLevel > 1 ? ` (Lv ${lvl})` : '';
+      tray.innerHTML += `<div class="active-perk-card"><h4>${p.icon} ${p.title}${titleSuffix}</h4><p>${p.getDesc(lvl)}</p></div>`;
+    }
   });
 }
 
@@ -352,8 +385,8 @@ function shakeScreen() {
 
 function log(msg) { document.getElementById('message-log').textContent = msg; }
 
+// Modals and Boot
 document.getElementById('reset-btn').addEventListener('click', initGame);
-
 const modal = document.getElementById('help-modal');
 document.getElementById('help-btn').addEventListener('click', () => modal.style.display = 'flex');
 document.getElementById('close-modal').addEventListener('click', () => modal.style.display = 'none');
@@ -361,19 +394,10 @@ window.addEventListener('click', (e) => { if (e.target === modal) modal.style.di
 
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  document.getElementById('install-btn').style.display = 'block';
+  e.preventDefault(); deferredPrompt = e; document.getElementById('install-btn').style.display = 'block';
 });
-
 document.getElementById('install-btn').addEventListener('click', async () => {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') document.getElementById('install-btn').style.display = 'none';
-    deferredPrompt = null;
-  }
+  if (deferredPrompt) { deferredPrompt.prompt(); const { outcome } = await deferredPrompt.userChoice; if (outcome === 'accepted') document.getElementById('install-btn').style.display = 'none'; deferredPrompt = null; }
 });
 
-updateHUD();
-initGame();
+updateHUD(); initGame();
