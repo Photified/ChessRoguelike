@@ -29,6 +29,7 @@ const evolutionPool = [
   { id: 'Chancellor', icon: '♖', title: 'The Chancellor', desc: 'Evolve! Moves as Knight + Rook.' }
 ];
 
+// Helper function to check perk levels
 function getPerkLevel(id) {
   return gameState.perks.filter(p => p === id).length;
 }
@@ -86,6 +87,8 @@ function triggerDraft(type) {
     });
   } else {
     document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose a Perk!`;
+    
+    // Filter out perks that have hit their max level
     const availableGambits = gambitPool.filter(g => getPerkLevel(g.id) < g.maxLevel);
     if (availableGambits.length === 0) { finishDraft(); return; } 
     
@@ -93,6 +96,8 @@ function triggerDraft(type) {
     shuffled.forEach(gambit => {
       const currentLvl = getPerkLevel(gambit.id);
       const nextLvl = currentLvl + 1;
+      
+      // Added a line break and scaled down the text slightly for the level indicator
       const titleSuffix = gambit.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${nextLvl})</span>` : '';
       
       container.innerHTML += `
@@ -261,9 +266,9 @@ function movePiece(id, tx, ty) {
         log(`MOMENTUM! (${gameState.momentumUsed}/${momLevel}) Quick step.`); 
         gameState.turn = 'player';
       } else {
-        gameState.turn = 'enemy'; 
-        setTimeout(playEnemyTurn, 100); 
-      }
+  gameState.turn = 'enemy'; 
+  setTimeout(playEnemyTurn, 100); 
+}
     }
   } else {
     gameState.turn = 'player';
@@ -282,7 +287,7 @@ function playEnemyTurn() {
     let tx = enemy.x + dx, ty = enemy.y + dy;
     while(tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
       if (tx === player.x && ty === player.y) { allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: true }); break; }
-      if (gameState.pieces.some(p => p.x === tx && p.y === cy)) break; 
+      if (gameState.pieces.some(p => p.x === tx && p.y === ty)) break; 
       allPossibleMoves.push({ id: enemy.id, x: tx, y: ty, isLethal: false });
       tx += dx; ty += dy;
     }
@@ -333,6 +338,8 @@ function playEnemyTurn() {
 function render() {
   const b = document.getElementById('board');
   b.innerHTML = '';
+  
+  // Responsive grid rules
   b.style.gridTemplateColumns = `repeat(${gameState.board.width}, 1fr)`;
   b.style.gridTemplateRows = `repeat(${gameState.board.height}, 1fr)`;
 
@@ -362,6 +369,8 @@ function render() {
     const p = gambitPool.find(g => g.id === perkId);
     if (p) {
       const lvl = getPerkLevel(perkId);
+      
+      // Also apply line break to the tray for consistency
       const titleSuffix = p.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${lvl})</span>` : '';
       tray.innerHTML += `<div class="active-perk-card"><h4>${p.icon} ${p.title}${titleSuffix}</h4><p>${p.getDesc(lvl)}</p></div>`;
     }
@@ -375,6 +384,7 @@ function shakeScreen() {
 
 function log(msg) { document.getElementById('message-log').textContent = msg; }
 
+// Modals and Boot
 document.getElementById('reset-btn').addEventListener('click', initGame);
 const modal = document.getElementById('help-modal');
 document.getElementById('help-btn').addEventListener('click', () => modal.style.display = 'flex');
