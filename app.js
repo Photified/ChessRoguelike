@@ -5,7 +5,7 @@ let gameState = {
   perks: [], playerType: 'Knight', isDrafting: false,
   bloodlustUsed: 0,
   score: 0,
-  levelTurnCount: 0 // Tracks efficiency
+  levelTurnCount: 0 
 };
 
 // Persistent Stats
@@ -16,7 +16,7 @@ const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook:
 
 const gambitPool = [
   { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', desc: 'Once per round, gain an extra turn after a kill.' },
-  { id: 'explosive', icon: '💣', title: 'Explosive Landing', desc: 'Landing obliterates adjacent enemies.' },
+  { id: 'explosive', icon: '💣', title: 'Explosive Landing', desc: 'Landing obliterates adjacent enemies (including diagonals).' },
   { id: 'agile', icon: '⚡', title: 'Agile Steed', desc: 'Add 1-square King movement in all directions.' },
   { id: 'cleave', icon: '🪓', title: 'Cleave', desc: 'Captures destroy all surrounding enemies.' },
   { id: 'momentum', icon: '💨', title: 'Momentum', desc: 'First non-capture move per turn grants an extra action.' }
@@ -43,7 +43,7 @@ function addScore(points, isBonus = false) {
   
   if (isBonus) {
     scoreEl.classList.remove('score-pop');
-    void scoreEl.offsetWidth; // trigger reflow
+    void scoreEl.offsetWidth; 
     scoreEl.classList.add('score-pop');
   }
 
@@ -185,7 +185,7 @@ function movePiece(id, tx, ty) {
   let killedEnemy = false, moveWasCapture = false;
   let multiKillCount = 0;
   
-  if (piece.team === 'player') gameState.levelTurnCount++; // Track turns for efficiency
+  if (piece.team === 'player') gameState.levelTurnCount++; 
 
   const tgtIdx = gameState.pieces.findIndex(p => p.x === tx && p.y === ty);
   if (tgtIdx !== -1) {
@@ -202,24 +202,28 @@ function movePiece(id, tx, ty) {
   }
 
   if (piece.team === 'player') {
+    // EXPLOSIVE: Now hits all 8 surrounding squares
     if (gameState.perks.includes('explosive')) {
-      [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}].forEach(adj => {
+      [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
+       {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
         const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
         if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; multiKillCount++; shakeScreen(); }
       });
     }
+    
+    // CLEAVE: Hits all 8 surrounding squares, but ONLY if you captured a piece
     if (moveWasCapture && gameState.perks.includes('cleave')) {
-      [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
+      [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, 
+       {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
         const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
         if (idx !== -1) { gameState.pieces.splice(idx, 1); multiKillCount++; shakeScreen(); }
       });
     }
     
-    // Process Points
     if (multiKillCount > 0) {
-        addScore(10 * multiKillCount); // Base Kill Points
+        addScore(10 * multiKillCount); 
         if (multiKillCount > 1) {
-            addScore(20, true); // AoE Multi-kill Bonus!
+            addScore(20, true); 
             log(`MULTI-KILL! +20 Pts`);
         }
     }
@@ -229,7 +233,6 @@ function movePiece(id, tx, ty) {
 
   if (piece.team === 'player') {
     if (gameState.pieces.filter(p => p.team === 'enemy').length === 0) {
-      // Efficiency Scoring
       let baseClear = 50;
       let efficiencyBonus = Math.max(0, 100 - (gameState.levelTurnCount * 5));
       addScore(baseClear + efficiencyBonus, true);
@@ -252,7 +255,6 @@ function movePiece(id, tx, ty) {
   }
 }
 
-// --- AI LOGIC (Unchanged, relies strictly on Chess movement) ---
 function playEnemyTurn() {
   const enemies = gameState.pieces.filter(p => p.team === 'enemy');
   const player = gameState.pieces.find(p => p.team === 'player');
@@ -350,7 +352,6 @@ function shakeScreen() {
 
 function log(msg) { document.getElementById('message-log').textContent = msg; }
 
-// --- UI & MODAL BINDINGS ---
 document.getElementById('reset-btn').addEventListener('click', initGame);
 
 const modal = document.getElementById('help-modal');
@@ -358,7 +359,6 @@ document.getElementById('help-btn').addEventListener('click', () => modal.style.
 document.getElementById('close-modal').addEventListener('click', () => modal.style.display = 'none');
 window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
 
-// --- PWA INSTALL HOOK ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
@@ -370,9 +370,7 @@ document.getElementById('install-btn').addEventListener('click', async () => {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      document.getElementById('install-btn').style.display = 'none';
-    }
+    if (outcome === 'accepted') document.getElementById('install-btn').style.display = 'none';
     deferredPrompt = null;
   }
 });
