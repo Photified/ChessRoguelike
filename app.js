@@ -25,7 +25,6 @@ const gambitPool = [
 ];
 
 const evolutionPool = [
-  { id: 'Paladin', icon: '🛡️', title: 'The Paladin', desc: 'Evolve! Moves as Knight + King.' },
   { id: 'Archbishop', icon: '♗', title: 'The Archbishop', desc: 'Evolve! Moves as Knight + Bishop.' },
   { id: 'Chancellor', icon: '♖', title: 'The Chancellor', desc: 'Evolve! Moves as Knight + Rook.' }
 ];
