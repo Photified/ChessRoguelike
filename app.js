@@ -15,7 +15,7 @@ let bestLevel = parseInt(localStorage.getItem('chessrl_bestlevel')) || 1;
 
 const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
 
-// --- NEW LEVEL-UP GAMBIT POOL ---
+// --- LEVEL-UP GAMBIT POOL ---
 const gambitPool = [
   { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', maxLevel: 3, getDesc: (lvl) => `Gain an extra turn after a kill (Max ${lvl}/round).` },
   { id: 'explosive', icon: '💣', title: 'Explosive Landing', maxLevel: 1, getDesc: () => `Landing obliterates adjacent enemies.` },
@@ -91,13 +91,15 @@ function triggerDraft(type) {
     
     // Filter out perks that have hit their max level
     const availableGambits = gambitPool.filter(g => getPerkLevel(g.id) < g.maxLevel);
-    if (availableGambits.length === 0) { finishDraft(); return; } // Skip draft if fully maxed
+    if (availableGambits.length === 0) { finishDraft(); return; } 
     
     const shuffled = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
     shuffled.forEach(gambit => {
       const currentLvl = getPerkLevel(gambit.id);
       const nextLvl = currentLvl + 1;
-      const titleSuffix = gambit.maxLevel > 1 ? ` <span style="color:#ffd700">(Lv ${nextLvl})</span>` : '';
+      
+      // Added a line break and scaled down the text slightly for the level indicator
+      const titleSuffix = gambit.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${nextLvl})</span>` : '';
       
       container.innerHTML += `
         <div class="card" onclick="selectGambit('${gambit.id}')">
@@ -257,7 +259,6 @@ function movePiece(id, tx, ty) {
       const blLevel = getPerkLevel('bloodlust');
       const momLevel = getPerkLevel('momentum');
 
-      // Check for leveled-up combo triggers!
       if (killedEnemy && blLevel > 0 && gameState.bloodlustUsed < blLevel) {
         gameState.bloodlustUsed++; 
         log(`BLOODLUST! (${gameState.bloodlustUsed}/${blLevel}) Extra Turn!`); 
@@ -333,7 +334,6 @@ function playEnemyTurn() {
     if (bestMove) { movePiece(bestMove.id, bestMove.x, bestMove.y); return; }
   }
   
-  // Failsafe: if enemies are trapped, they skip their turn but we MUST reset the player's fatigue cooldowns
   gameState.turn = 'player'; 
   gameState.momentumUsed = 0; 
   gameState.bloodlustUsed = 0; 
@@ -364,7 +364,6 @@ function render() {
     }
   }
   
-  // Render Active Perks Tray with Unique Grouping & Levels
   const tray = document.getElementById('active-perks');
   tray.innerHTML = '';
   const uniquePerks = [...new Set(gameState.perks)];
@@ -372,7 +371,9 @@ function render() {
     const p = gambitPool.find(g => g.id === perkId);
     if (p) {
       const lvl = getPerkLevel(perkId);
-      const titleSuffix = p.maxLevel > 1 ? ` (Lv ${lvl})` : '';
+      
+      // Also apply line break to the tray for consistency
+      const titleSuffix = p.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${lvl})</span>` : '';
       tray.innerHTML += `<div class="active-perk-card"><h4>${p.icon} ${p.title}${titleSuffix}</h4><p>${p.getDesc(lvl)}</p></div>`;
     }
   });
