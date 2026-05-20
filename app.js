@@ -1,16 +1,19 @@
+// --- STATE ---
 let gameState = {
   level: 1, board: { width: 5, height: 5 }, pieces: [],
   selectedPieceId: null, validMoves: [], turn: 'player',
-  perks: [], playerType: 'Knight', isDrafting: false
+  perks: [], playerType: 'Knight', isDrafting: false,
+  bloodlustUsed: 0 // Prevents infinite turn loops
 };
 
-const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
+// Added Bishop and Rook
+const symbols = { Knight: '♞', Pawn: '♟', Queen: '♛', Bishop: '♝', Rook: '♜', Paladin: '🛡️', Archbishop: '♗', Chancellor: '♖' };
 
 const gambitPool = [
-  { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', desc: 'Extra turn immediately after a kill.' },
+  { id: 'bloodlust', icon: '🩸', title: 'Bloodlust', desc: 'Once per round, gain an extra turn after a kill.' },
   { id: 'explosive', icon: '💣', title: 'Explosive Landing', desc: 'Landing obliterates adjacent enemies.' },
   { id: 'agile', icon: '⚡', title: 'Agile Steed', desc: 'Add 1-square King movement in all directions.' },
-  { id: 'cleave', icon: '🪓', title: 'Cleave', desc: 'Capturing an enemy also destroys all enemies adjacent to IT.' },
+  { id: 'cleave', icon: '🪓', title: 'Cleave', desc: 'Captures destroy all surrounding enemies.' },
   { id: 'momentum', icon: '💨', title: 'Momentum', desc: 'First non-capture move per turn grants an extra action.' }
 ];
 
@@ -64,16 +67,22 @@ function finishDraft() {
 
 function startLevel() {
   gameState.turn = 'player'; gameState.selectedPieceId = null; gameState.validMoves = [];
+  gameState.bloodlustUsed = 0;
+
   if (gameState.level === 3) gameState.board = { width: 6, height: 6 };
   if (gameState.level === 5) gameState.board = { width: 7, height: 7 };
 
   const px = Math.floor(gameState.board.width / 2), py = gameState.board.height - 1;
   gameState.pieces = [{ id: 'player', type: gameState.playerType, team: 'player', x: px, y: py }];
 
-  const pawnCount = gameState.level + 2; 
+  // Difficulty Scaling
+  const pawnCount = gameState.level + 1; 
   for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
+  
   if (gameState.level >= 2) spawnEnemy('Queen', 2);
-  if (gameState.level >= 4) spawnEnemy('Queen', 2);
+  if (gameState.level >= 3) spawnEnemy('Rook', 3); // Armored Tanks spawn
+  if (gameState.level >= 4) spawnEnemy('Bishop', 3); // Cross-map Snipers spawn
+  if (gameState.level >= 5) spawnEnemy('Queen', 2);
 
   log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
   render();
@@ -136,6 +145,22 @@ function handleCellClick(x, y) {
   render();
 }
 
+// Reusable logic to handle splash damage against Armored units
+function applySplashDamage(x, y) {
+  const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === x && p.y === y);
+  if (idx !== -1) { 
+    if (gameState.pieces[idx].type === 'Rook') {
+        log("An Armored Rook deflected the explosion!");
+        return false; // Did not kill
+    } else {
+        gameState.pieces.splice(idx, 1); 
+        shakeScreen(); 
+        return true; // Killed
+    }
+  }
+  return false;
+}
+
 function movePiece(id, tx, ty) {
   const piece = gameState.pieces.find(p => p.id === id);
   let killedEnemy = false, moveWasCapture = false;
@@ -157,14 +182,12 @@ function movePiece(id, tx, ty) {
   if (piece.team === 'player') {
     if (gameState.perks.includes('explosive')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}].forEach(adj => {
-        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-        if (idx !== -1) { gameState.pieces.splice(idx, 1); killedEnemy = true; shakeScreen(); }
+        if (applySplashDamage(adj.x, adj.y)) killedEnemy = true;
       });
     }
     if (moveWasCapture && gameState.perks.includes('cleave')) {
       [{x: tx+1, y: ty}, {x: tx-1, y: ty}, {x: tx, y: ty+1}, {x: tx, y: ty-1}, {x: tx+1, y: ty+1}, {x: tx-1, y: ty-1}, {x: tx+1, y: ty-1}, {x: tx-1, y: ty+1}].forEach(adj => {
-        const idx = gameState.pieces.findIndex(p => p.team === 'enemy' && p.x === adj.x && p.y === adj.y);
-        if (idx !== -1) { gameState.pieces.splice(idx, 1); shakeScreen(); }
+        applySplashDamage(adj.x, adj.y);
       });
     }
   }
@@ -176,12 +199,18 @@ function movePiece(id, tx, ty) {
       log("Wave Cleared!"); gameState.level++;
       setTimeout(() => { (gameState.level === 3 || gameState.level === 6) ? triggerDraft('evolution') : triggerDraft('gambit'); }, 800);
     } else {
-      if (killedEnemy && gameState.perks.includes('bloodlust')) {
-        log("BLOODLUST! Extra Turn!"); gameState.turn = 'player';
+      // BLOODLUST FATIGUE: Hard capped at 1 trigger per round.
+      if (killedEnemy && gameState.perks.includes('bloodlust') && gameState.bloodlustUsed < 1) {
+        log("BLOODLUST! 1 Extra Turn!"); 
+        gameState.bloodlustUsed++; 
+        gameState.turn = 'player';
       } else if (!killedEnemy && gameState.perks.includes('momentum') && !gameState.momentumUsedThisTurn) {
         log("MOMENTUM! Quick step."); gameState.momentumUsedThisTurn = true; gameState.turn = 'player';
       } else {
-        gameState.turn = 'enemy'; gameState.momentumUsedThisTurn = false; setTimeout(playEnemyTurn, 200); 
+        gameState.turn = 'enemy'; 
+        gameState.momentumUsedThisTurn = false; 
+        gameState.bloodlustUsed = 0; // Reset fatigue
+        setTimeout(playEnemyTurn, 200); 
       }
     }
   } else {
@@ -189,33 +218,47 @@ function movePiece(id, tx, ty) {
   }
 }
 
-// --- LETHAL AI LOGIC ---
+// --- ADVANCED AI LOGIC ---
 function playEnemyTurn() {
   const enemies = gameState.pieces.filter(p => p.team === 'enemy');
   const player = gameState.pieces.find(p => p.team === 'player');
   if (!player || !enemies.length) return;
 
-  // 1. CHECK FOR LETHAL BLUNDERS FIRST
+  // Reusable Raycaster for Lethal Checks
+  const checkLethalRay = (enemy, dirs) => {
+    for (let d of dirs) {
+      let cx = enemy.x + d.dx, cy = enemy.y + d.dy;
+      while (cx >= 0 && cx < gameState.board.width && cy >= 0 && cy < gameState.board.height) {
+        if (cx === player.x && cy === player.y) return {x: cx, y: cy}; // Lethal found
+        if (gameState.pieces.some(p => p.x === cx && p.y === cy)) break; // Line of sight blocked
+        cx += d.dx; cy += d.dy;
+      }
+    }
+    return null;
+  };
+
+  const straights = [{dx: 0, dy: 1}, {dx: 1, dy: 0}, {dx: 0, dy: -1}, {dx: -1, dy: 0}];
+  const diagonals = [{dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: -1}, {dx: -1, dy: 1}];
+
+  // 1. EXECUTE LETHAL BLUNDERS FIRST
   for (let enemy of enemies) {
     if (enemy.type === 'Pawn') {
       if (player.y === enemy.y + 1 && (player.x === enemy.x - 1 || player.x === enemy.x + 1)) {
-        movePiece(enemy.id, player.x, player.y); return; // Execute lethal diagonal pawn capture immediately
+        movePiece(enemy.id, player.x, player.y); return; 
       }
+    } else if (enemy.type === 'Bishop') {
+      let lethal = checkLethalRay(enemy, diagonals);
+      if (lethal) { movePiece(enemy.id, lethal.x, lethal.y); return; }
+    } else if (enemy.type === 'Rook') {
+      let lethal = checkLethalRay(enemy, straights);
+      if (lethal) { movePiece(enemy.id, lethal.x, lethal.y); return; }
     } else if (enemy.type === 'Queen') {
-      const dx = Math.sign(player.x - enemy.x), dy = Math.sign(player.y - enemy.y);
-      // Are they on the same line/diagonal?
-      if (dx === 0 || dy === 0 || Math.abs(player.x - enemy.x) === Math.abs(player.y - enemy.y)) {
-        let clear = true, cx = enemy.x + dx, cy = enemy.y + dy;
-        while (cx !== player.x || cy !== player.y) { // Raycast to see if path is blocked
-          if (gameState.pieces.some(p => p.x === cx && p.y === cy)) { clear = false; break; }
-          cx += dx; cy += dy;
-        }
-        if (clear) { movePiece(enemy.id, player.x, player.y); return; } // SNIPED
-      }
+      let lethal = checkLethalRay(enemy, [...straights, ...diagonals]);
+      if (lethal) { movePiece(enemy.id, lethal.x, lethal.y); return; }
     }
   }
 
-  // 2. STANDARD MOVEMENT (If no lethal capture exists)
+  // 2. STANDARD MOVEMENT
   let moves = [];
   enemies.forEach(enemy => {
     if (enemy.type === 'Pawn') {
@@ -223,12 +266,29 @@ function playEnemyTurn() {
       if (fy < gameState.board.height && !gameState.pieces.some(p => p.x === enemy.x && p.y === fy)) {
         moves.push({ id: enemy.id, x: enemy.x, y: fy });
       }
-    } else if (enemy.type === 'Queen') {
-      let qx = enemy.x, qy = enemy.y;
-      if (player.x > enemy.x) qx++; else if (player.x < enemy.x) qx--;
-      if (player.y > enemy.y) qy++; else if (player.y < enemy.y) qy--;
-      if (!gameState.pieces.some(p => p.team === 'enemy' && p.x === qx && p.y === qy)) {
-        moves.push({ id: enemy.id, x: qx, y: qy });
+    } else if (enemy.type === 'Queen' || enemy.type === 'Rook') {
+      // Queens and Rooks hunt you on straights
+      let tx = enemy.x, ty = enemy.y;
+      if (player.x > enemy.x) tx++; else if (player.x < enemy.x) tx--;
+      if (player.y > enemy.y) ty++; else if (player.y < enemy.y) ty--;
+      
+      // If it's a Rook, it only wants to move on straights, not diagonals
+      if (enemy.type === 'Rook') {
+        if (Math.abs(player.x - enemy.x) > Math.abs(player.y - enemy.y)) ty = enemy.y; else tx = enemy.x;
+      }
+      
+      if (!gameState.pieces.some(p => p.team === 'enemy' && p.x === tx && p.y === ty)) {
+        moves.push({ id: enemy.id, x: tx, y: ty });
+      }
+    } else if (enemy.type === 'Bishop') {
+      // Bishops shimmy diagonally toward you
+      let dx = player.x > enemy.x ? 1 : -1;
+      let dy = player.y > enemy.y ? 1 : -1;
+      let tx = enemy.x + dx, ty = enemy.y + dy;
+      if (tx >= 0 && tx < gameState.board.width && ty >= 0 && ty < gameState.board.height) {
+          if (!gameState.pieces.some(p => p.team === 'enemy' && p.x === tx && p.y === ty)) {
+            moves.push({ id: enemy.id, x: tx, y: ty });
+          }
       }
     }
   });
@@ -258,6 +318,10 @@ function render() {
         const pEl = document.createElement('div');
         pEl.className = `piece ${piece.team}`;
         pEl.textContent = symbols[piece.type];
+        
+        // Add a visual CSS identifier for the Armored Rooks
+        if (piece.type === 'Rook') pEl.style.textShadow = "0 0 10px rgba(255, 0, 0, 0.8)";
+        
         if (piece.id === gameState.selectedPieceId) pEl.style.transform = 'scale(1.3)';
         cell.appendChild(pEl);
       }
@@ -266,7 +330,6 @@ function render() {
     }
   }
   
-  // Render Active Perks Tray
   const tray = document.getElementById('active-perks');
   tray.innerHTML = '';
   gameState.perks.forEach(perkId => {
