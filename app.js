@@ -88,7 +88,7 @@ function initGame() {
   // Hide Home UI, Show Game UI
   document.getElementById('home-screen-actions').style.display = 'none';
   document.getElementById('message-log').style.display = 'block';
-  document.getElementById('active-perks').style.display = 'grid'; // Uses the new CSS grid
+  document.getElementById('active-perks').style.display = 'grid';
 
   gameState.level = 1; gameState.score = 0; gameState.board = { width: 5, height: 5 };
   gameState.perks = []; gameState.playerType = 'Knight';
@@ -612,12 +612,12 @@ document.getElementById('help-btn').addEventListener('click', () => modal.style.
 document.getElementById('close-modal').addEventListener('click', () => modal.style.display = 'none');
 window.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
 
+// --- PWA INSTALL LOGIC ---
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault(); 
   deferredPrompt = e; 
   document.getElementById('install-btn').style.display = 'block';
-  document.getElementById('home-install-btn').style.display = 'block'; // Triggers the big start-screen button
 });
 
 const handleInstallClick = async () => {
@@ -626,12 +626,10 @@ const handleInstallClick = async () => {
     const { outcome } = await deferredPrompt.userChoice; 
     if (outcome === 'accepted') {
       document.getElementById('install-btn').style.display = 'none'; 
-      document.getElementById('home-install-btn').style.display = 'none'; 
     }
     deferredPrompt = null; 
   }
 };
 document.getElementById('install-btn').addEventListener('click', handleInstallClick);
-document.getElementById('home-install-btn').addEventListener('click', handleInstallClick);
 
 updateHUD(); bootApp();
