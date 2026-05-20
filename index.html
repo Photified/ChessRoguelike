@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ChessRL: Evolution</title>
+  <title>ChessRL: Lethal Edition</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
   <meta name="theme-color" content="#1e1e1e">
@@ -24,19 +24,18 @@
     </main>
     
     <div id="message-log">Loading Engine...</div>
+    
+    <div id="active-perks"></div>
   </div>
 
   <div id="draft-screen" style="display: none;">
     <h2 id="draft-title">Choose your path!</h2>
-    <div id="draft-cards" class="draft-cards">
-      </div>
+    <div id="draft-cards" class="draft-cards"></div>
   </div>
 
   <script src="app.js"></script>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
-    }
+    if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
   </script>
 </body>
 </html>
