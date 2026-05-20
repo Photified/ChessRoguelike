@@ -3,20 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>ChessRL: Lethal Edition</title>
+  <title>ChessRL: The Roguelike</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
-  <meta name="theme-color" content="#1e1e1e">
+  <meta name="theme-color" content="#121212">
 </head>
 <body>
-  <div id="app">
-    <header>
+  
+  <header class="top-banner">
+    <div class="banner-left">
       <h1>ChessRL</h1>
-      <div class="controls">
-        <button id="reset-btn">Restart Run</button>
-      </div>
-    </header>
+      <button id="reset-btn" class="sm-btn">Restart</button>
+    </div>
     
+    <div class="banner-center">
+      <div class="stat-row">
+        <span class="stat-label">Level:</span> <span id="hud-level" class="stat-val">1</span>
+        <span class="stat-divider">|</span>
+        <span class="stat-label">Score:</span> <span id="hud-score" class="stat-val">0</span>
+      </div>
+      <div class="best-row">
+        Best: Lvl <span id="hud-best-lvl">1</span> (<span id="hud-best-score">0</span> pts)
+      </div>
+    </div>
+    
+    <div class="banner-right">
+      <button id="help-btn" class="icon-btn">⚙️</button>
+    </div>
+  </header>
+
+  <div id="app">
     <main>
       <div id="board-container">
         <div id="board"></div>
@@ -24,13 +40,30 @@
     </main>
     
     <div id="message-log">Loading Engine...</div>
-    
     <div id="active-perks"></div>
   </div>
 
   <div id="draft-screen" style="display: none;">
     <h2 id="draft-title">Choose your path!</h2>
     <div id="draft-cards" class="draft-cards"></div>
+  </div>
+
+  <div id="help-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="close-btn" id="close-modal">&times;</span>
+      <h2>How to Play</h2>
+      <p><strong>Goal:</strong> Eliminate all enemies to clear the wave. Do not get captured.</p>
+      <ul class="help-list">
+        <li><strong>Enemies:</strong> Pawns march forward. If they reach the bottom, they instantly promote to Queens.</li>
+        <li><strong>Smart AI:</strong> Enemies will actively try to dodge your attacks and set up traps.</li>
+        <li><strong>Drafting:</strong> Clear waves to draft game-breaking perks. At levels 3 and 6, your piece evolves.</li>
+        <li><strong>Scoring:</strong> Earn massive points by clearing levels using as few turns as possible.</li>
+      </ul>
+      
+      <div class="modal-actions">
+        <button id="install-btn" style="display: none;">📲 Install App (PWA)</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
