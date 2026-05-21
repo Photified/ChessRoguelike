@@ -111,14 +111,31 @@ function triggerDraft(type) {
     const availableGambits = gambitPool.filter(g => getPerkLevel(g.id) < g.maxLevel);
     if (availableGambits.length === 0) { finishDraft(); return; } 
     
-    const shuffled = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
-    shuffled.forEach(gambit => {
+    let draftOptions = [];
+    const momentumIdx = availableGambits.findIndex(g => g.id === 'momentum');
+    
+    // Always offer Momentum if it's available, then fill the rest randomly
+    if (momentumIdx !== -1) {
+      const momentumGambit = availableGambits.splice(momentumIdx, 1)[0];
+      const shuffledOthers = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 2);
+      draftOptions = [momentumGambit, ...shuffledOthers];
+    } else {
+      draftOptions = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
+    }
+
+    draftOptions.forEach(gambit => {
       const currentLvl = getPerkLevel(gambit.id);
       const nextLvl = currentLvl + 1;
       const titleSuffix = gambit.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${nextLvl})</span>` : '';
       
+      // Determine if this is our highlighted pick
+      const isSuggested = gambit.id === 'momentum';
+      const cardClass = isSuggested ? 'card suggested' : 'card';
+      const suggestedBadge = isSuggested ? `<div class="suggested-badge">⭐ Suggested</div>` : '';
+      
       container.innerHTML += `
-        <div class="card" onclick="selectGambit('${gambit.id}')">
+        <div class="${cardClass}" onclick="selectGambit('${gambit.id}')">
+          ${suggestedBadge}
           <h3>${gambit.icon} ${gambit.title}${titleSuffix}</h3>
           <p>${gambit.getDesc(nextLvl)}</p>
         </div>`;
@@ -193,9 +210,12 @@ function startLevel() {
   } else {
     const pawnCount = gameState.level + 1; 
     for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
-    if (gameState.level >= 2) spawnEnemy('Queen', 2);
+    
+    // Delayed enemy scaling: easier early rounds
+    if (gameState.level >= 2) spawnEnemy('Bishop', 2); 
     if (gameState.level >= 3) spawnEnemy('Rook', 3); 
-    if (gameState.level >= 4) spawnEnemy('Bishop', 3); 
+    if (gameState.level >= 4) spawnEnemy('Queen', 2); 
+    
     log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
   }
 
@@ -207,7 +227,7 @@ function spawnEnemy(type, maxY) {
   let ex, ey, occupied;
   do {
     ex = Math.floor(Math.random() * gameState.board.width);
-    ey = Math.floor(Math.random() * maxY);
+    ey = Math.floor(Math.random() * Math.max(1, maxY)); // Failsafe to ensure positive bounds
     occupied = gameState.pieces.some(p => p.x === ex && p.y === ey);
   } while (occupied);
   gameState.pieces.push({ id: Math.random().toString(36).substr(2, 9), type: type, team: 'enemy', x: ex, y: ey });
