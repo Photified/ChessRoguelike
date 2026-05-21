@@ -92,8 +92,8 @@ function initGame() {
 
   gameState.level = 1; gameState.score = 0; gameState.board = { width: 5, height: 5 };
   
-  // Start the player with Momentum Level 1 immediately
-  gameState.perks = ['momentum']; 
+  // Player starts with an empty perk pool so they can draft from scratch
+  gameState.perks = []; 
   gameState.playerType = 'Knight';
   
   updateHUD();
