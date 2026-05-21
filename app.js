@@ -8,7 +8,8 @@ let gameState = {
   // New Mechanics State
   voidSquares: [], turnsSinceCapture: 0, 
   suddenDeathActive: false, suddenDeathTimer: 0, suddenDeathRing: 0,
-  isPlacingTrap: false, trapsToPlace: 0, trapUsedThisRound: false
+  isPlacingTrap: false, trapsToPlace: 0, trapUsedThisRound: false,
+  pendingDraftSelections: []
 };
 
 // Persistent Stats
@@ -98,8 +99,10 @@ function initGame() {
 
 function triggerDraft(type) {
   gameState.isDrafting = true;
+  gameState.pendingDraftSelections = [];
   const container = document.getElementById('draft-cards');
   container.innerHTML = '';
+  document.getElementById('confirm-draft-btn').style.display = 'none';
   
   if (type === 'evolution') {
     document.getElementById('draft-title').textContent = `Level ${gameState.level}: PIECE EVOLUTION!`;
@@ -107,20 +110,20 @@ function triggerDraft(type) {
       container.innerHTML += `<div class="card evolution" onclick="selectEvolution('${evo.id}')"><h3>${evo.icon} ${evo.title}</h3><p>${evo.desc}</p></div>`;
     });
   } else {
-    document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose a Perk!`;
+    document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose 2 Perks!`;
     const availableGambits = gambitPool.filter(g => getPerkLevel(g.id) < g.maxLevel);
     if (availableGambits.length === 0) { finishDraft(); return; } 
     
     let draftOptions = [];
     const momentumIdx = availableGambits.findIndex(g => g.id === 'momentum');
     
-    // Always offer Momentum if it's available, then fill the rest randomly
+    // Expand to 4 options so the player has choices when picking 2
     if (momentumIdx !== -1) {
       const momentumGambit = availableGambits.splice(momentumIdx, 1)[0];
-      const shuffledOthers = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 2);
+      const shuffledOthers = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
       draftOptions = [momentumGambit, ...shuffledOthers];
     } else {
-      draftOptions = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
+      draftOptions = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 4);
     }
 
     draftOptions.forEach(gambit => {
@@ -128,13 +131,12 @@ function triggerDraft(type) {
       const nextLvl = currentLvl + 1;
       const titleSuffix = gambit.maxLevel > 1 ? `<br><span style="color:#ffd700; font-size: 0.85em;">(Lv ${nextLvl})</span>` : '';
       
-      // Determine if this is our highlighted pick
       const isSuggested = gambit.id === 'momentum';
       const cardClass = isSuggested ? 'card suggested' : 'card';
       const suggestedBadge = isSuggested ? `<div class="suggested-badge">⭐ Suggested</div>` : '';
       
       container.innerHTML += `
-        <div class="${cardClass}" onclick="selectGambit('${gambit.id}')">
+        <div id="draft-card-${gambit.id}" class="${cardClass}" onclick="toggleGambitSelection('${gambit.id}')">
           ${suggestedBadge}
           <h3>${gambit.icon} ${gambit.title}${titleSuffix}</h3>
           <p>${gambit.getDesc(nextLvl)}</p>
@@ -144,8 +146,44 @@ function triggerDraft(type) {
   document.getElementById('draft-screen').style.display = 'flex';
 }
 
-window.selectGambit = function(perk) { gameState.perks.push(perk); finishDraft(); };
+window.toggleGambitSelection = function(perkId) {
+  const card = document.getElementById(`draft-card-${perkId}`);
+  const idx = gameState.pendingDraftSelections.indexOf(perkId);
+  
+  if (idx !== -1) {
+    // Deselect
+    gameState.pendingDraftSelections.splice(idx, 1);
+    card.classList.remove('selected');
+  } else {
+    // Determine how many picks are allowed based on available options (usually 2)
+    const availableCards = document.querySelectorAll('#draft-cards .card').length;
+    const maxPicks = Math.min(2, availableCards);
+    
+    // Select if under limit
+    if (gameState.pendingDraftSelections.length < maxPicks) {
+      gameState.pendingDraftSelections.push(perkId);
+      card.classList.add('selected');
+    }
+  }
+  
+  // Show/Hide Confirm Button
+  const requiredPicks = Math.min(2, document.querySelectorAll('#draft-cards .card').length);
+  if (gameState.pendingDraftSelections.length === requiredPicks && requiredPicks > 0) {
+    document.getElementById('confirm-draft-btn').style.display = 'block';
+  } else {
+    document.getElementById('confirm-draft-btn').style.display = 'none';
+  }
+};
+
 window.selectEvolution = function(newType) { gameState.playerType = newType; finishDraft(); };
+
+document.getElementById('confirm-draft-btn').addEventListener('click', () => {
+  if (gameState.pendingDraftSelections.length > 0) {
+    gameState.perks.push(...gameState.pendingDraftSelections);
+  }
+  finishDraft();
+});
+
 window.activateTrap = function() {
   if (gameState.turn !== 'player' || gameState.trapUsedThisRound || gameState.isDrafting) return;
   gameState.isPlacingTrap = true;
@@ -156,6 +194,7 @@ window.activateTrap = function() {
 function finishDraft() {
   document.getElementById('draft-screen').style.display = 'none';
   gameState.isDrafting = false;
+  gameState.pendingDraftSelections = [];
   startLevel();
 }
 
