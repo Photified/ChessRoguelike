@@ -207,14 +207,17 @@ function startLevel() {
     
     log(`WARNING: Boss Wave! Break the Vanguard!`);
   } else {
-    // Smoother early game scaling
     const maxY = Math.floor(gameState.board.height / 2);
     
     if (gameState.level === 1) {
-      spawnEnemy('Pawn', maxY);
+      // Randomize within the safe center columns (1, 2, or 3)
+      const safeX = [1, 2, 3][Math.floor(Math.random() * 3)];
+      gameState.pieces.push({ id: Math.random().toString(36).substr(2, 9), type: 'Pawn', team: 'enemy', x: safeX, y: 0 });
     } else if (gameState.level === 2) {
-      spawnEnemy('Pawn', maxY);
-      spawnEnemy('Pawn', maxY);
+      // Pick two distinct safe columns for the pawns
+      const safeCols = [1, 2, 3].sort(() => 0.5 - Math.random());
+      gameState.pieces.push({ id: Math.random().toString(36).substr(2, 9), type: 'Pawn', team: 'enemy', x: safeCols[0], y: 0 });
+      gameState.pieces.push({ id: Math.random().toString(36).substr(2, 9), type: 'Pawn', team: 'enemy', x: safeCols[1], y: 0 });
     } else if (gameState.level === 3) {
       spawnEnemy('Pawn', maxY);
       spawnEnemy('Pawn', maxY);
