@@ -208,13 +208,14 @@ function startLevel() {
     
     log(`WARNING: Boss Wave! Break the Vanguard!`);
   } else {
-    const pawnCount = gameState.level + 1; 
+    // First 3 rounds are ONLY pawns, with slightly more pawns to farm
+    const pawnCount = gameState.level + 2; 
     for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
     
-    // Delayed enemy scaling: easier early rounds
-    if (gameState.level >= 2) spawnEnemy('Bishop', 2); 
-    if (gameState.level >= 3) spawnEnemy('Rook', 3); 
-    if (gameState.level >= 4) spawnEnemy('Queen', 2); 
+    // Delayed enemy scaling
+    if (gameState.level >= 4) spawnEnemy('Bishop', 2); 
+    if (gameState.level >= 6) spawnEnemy('Rook', 3); 
+    if (gameState.level >= 7) spawnEnemy('Queen', 2); 
     
     log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
   }
