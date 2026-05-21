@@ -136,7 +136,6 @@ function triggerDraft(type) {
       const cardClass = isSuggested ? 'card suggested' : 'card';
       const suggestedBadge = isSuggested ? `<div class="suggested-badge">⭐ Suggested</div>` : '';
       
-      // Reverted back to instantly selecting the gambit on click
       container.innerHTML += `
         <div id="draft-card-${gambit.id}" class="${cardClass}" onclick="selectGambit('${gambit.id}')">
           ${suggestedBadge}
@@ -190,21 +189,17 @@ function startLevel() {
     
     // Dynamic Vanguard Formation based on Boss Tier
     if (bossTier === 1) {
-      // Level 5: 1 Pawn front, 1 Bishop left
       gameState.pieces.push({ id: 'guard1', type: 'Pawn', team: 'enemy', x: bx, y: by + 1 });
       gameState.pieces.push({ id: 'guard2', type: 'Bishop', team: 'enemy', x: Math.max(0, bx - 1), y: by });
     } else if (bossTier === 2) {
-      // Level 10: 1 Pawn front, 1 Bishop left, 1 Rook right
       gameState.pieces.push({ id: 'guard1', type: 'Pawn', team: 'enemy', x: bx, y: by + 1 });
       gameState.pieces.push({ id: 'guard2', type: 'Bishop', team: 'enemy', x: Math.max(0, bx - 1), y: by });
       gameState.pieces.push({ id: 'guard3', type: 'Rook', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
     } else if (bossTier === 3) {
-      // Level 15: 1 Rook front, 2 Bishops flanks
       gameState.pieces.push({ id: 'guard1', type: 'Rook', team: 'enemy', x: bx, y: by + 1 });
       gameState.pieces.push({ id: 'guard2', type: 'Bishop', team: 'enemy', x: Math.max(0, bx - 1), y: by });
       gameState.pieces.push({ id: 'guard3', type: 'Bishop', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
     } else {
-      // Level 20+: 1 Queen front, 2 Rooks flanks
       gameState.pieces.push({ id: 'guard1', type: 'Queen', team: 'enemy', x: bx, y: by + 1 });
       gameState.pieces.push({ id: 'guard2', type: 'Rook', team: 'enemy', x: Math.max(0, bx - 1), y: by });
       gameState.pieces.push({ id: 'guard3', type: 'Rook', team: 'enemy', x: Math.min(gameState.board.width - 1, bx + 1), y: by });
@@ -212,14 +207,37 @@ function startLevel() {
     
     log(`WARNING: Boss Wave! Break the Vanguard!`);
   } else {
-    // First 3 rounds are ONLY pawns
-    const pawnCount = gameState.level + 2; 
-    for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
+    // Smoother early game scaling
+    const maxY = Math.floor(gameState.board.height / 2);
     
-    // Delayed enemy scaling
-    if (gameState.level >= 4) spawnEnemy('Bishop', 2); 
-    if (gameState.level >= 6) spawnEnemy('Rook', 3); 
-    if (gameState.level >= 7) spawnEnemy('Queen', 2); 
+    if (gameState.level === 1) {
+      spawnEnemy('Pawn', maxY);
+    } else if (gameState.level === 2) {
+      spawnEnemy('Pawn', maxY);
+      spawnEnemy('Pawn', maxY);
+    } else if (gameState.level === 3) {
+      spawnEnemy('Pawn', maxY);
+      spawnEnemy('Pawn', maxY);
+      const elite = Math.random() > 0.5 ? 'Bishop' : 'Rook';
+      spawnEnemy(elite, 2); // Place Elite near the top
+    } else {
+      // Level 4+ Ramp-up Logic
+      const pawnCount = Math.min(5, Math.floor(gameState.level / 2) + 1); 
+      for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', maxY);
+      
+      const bishopCount = Math.floor((gameState.level - 2) / 2); 
+      for (let i = 0; i < bishopCount; i++) spawnEnemy('Bishop', 2);
+      
+      if (gameState.level >= 6) {
+        const rookCount = Math.floor((gameState.level - 4) / 2); 
+        for (let i = 0; i < rookCount; i++) spawnEnemy('Rook', 3);
+      }
+      
+      if (gameState.level >= 8) {
+        const queenCount = Math.floor((gameState.level - 6) / 2); 
+        for (let i = 0; i < queenCount; i++) spawnEnemy('Queen', 2);
+      }
+    }
     
     log(`Level ${gameState.level} Start!` + ((gameState.level===3||gameState.level===5) ? " BOARD EXPANDED!" : ""));
   }
@@ -232,7 +250,7 @@ function spawnEnemy(type, maxY) {
   let ex, ey, occupied;
   do {
     ex = Math.floor(Math.random() * gameState.board.width);
-    ey = Math.floor(Math.random() * Math.max(1, maxY)); // Failsafe to ensure positive bounds
+    ey = Math.floor(Math.random() * Math.max(1, maxY)); 
     occupied = gameState.pieces.some(p => p.x === ex && p.y === ey);
   } while (occupied);
   gameState.pieces.push({ id: Math.random().toString(36).substr(2, 9), type: type, team: 'enemy', x: ex, y: ey });
