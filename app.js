@@ -8,8 +8,7 @@ let gameState = {
   // New Mechanics State
   voidSquares: [], turnsSinceCapture: 0, 
   suddenDeathActive: false, suddenDeathTimer: 0, suddenDeathRing: 0,
-  isPlacingTrap: false, trapsToPlace: 0, trapUsedThisRound: false,
-  pendingDraftSelections: []
+  isPlacingTrap: false, trapsToPlace: 0, trapUsedThisRound: false
 };
 
 // Persistent Stats
@@ -92,17 +91,19 @@ function initGame() {
   document.getElementById('active-perks').style.display = 'grid';
 
   gameState.level = 1; gameState.score = 0; gameState.board = { width: 5, height: 5 };
-  gameState.perks = []; gameState.playerType = 'Knight';
+  
+  // Start the player with Momentum Level 1 immediately
+  gameState.perks = ['momentum']; 
+  gameState.playerType = 'Knight';
+  
   updateHUD();
   triggerDraft('gambit'); 
 }
 
 function triggerDraft(type) {
   gameState.isDrafting = true;
-  gameState.pendingDraftSelections = [];
   const container = document.getElementById('draft-cards');
   container.innerHTML = '';
-  document.getElementById('confirm-draft-btn').style.display = 'none';
   
   if (type === 'evolution') {
     document.getElementById('draft-title').textContent = `Level ${gameState.level}: PIECE EVOLUTION!`;
@@ -110,14 +111,14 @@ function triggerDraft(type) {
       container.innerHTML += `<div class="card evolution" onclick="selectEvolution('${evo.id}')"><h3>${evo.icon} ${evo.title}</h3><p>${evo.desc}</p></div>`;
     });
   } else {
-    document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose 2 Perks!`;
+    document.getElementById('draft-title').textContent = `Level ${gameState.level}: Choose a Perk!`;
     const availableGambits = gambitPool.filter(g => getPerkLevel(g.id) < g.maxLevel);
     if (availableGambits.length === 0) { finishDraft(); return; } 
     
     let draftOptions = [];
     const momentumIdx = availableGambits.findIndex(g => g.id === 'momentum');
     
-    // Expand to 4 options so the player has choices when picking 2
+    // Always offer Momentum if it hasn't reached max level
     if (momentumIdx !== -1) {
       const momentumGambit = availableGambits.splice(momentumIdx, 1)[0];
       const shuffledOthers = [...availableGambits].sort(() => 0.5 - Math.random()).slice(0, 3);
@@ -135,8 +136,9 @@ function triggerDraft(type) {
       const cardClass = isSuggested ? 'card suggested' : 'card';
       const suggestedBadge = isSuggested ? `<div class="suggested-badge">⭐ Suggested</div>` : '';
       
+      // Reverted back to instantly selecting the gambit on click
       container.innerHTML += `
-        <div id="draft-card-${gambit.id}" class="${cardClass}" onclick="toggleGambitSelection('${gambit.id}')">
+        <div id="draft-card-${gambit.id}" class="${cardClass}" onclick="selectGambit('${gambit.id}')">
           ${suggestedBadge}
           <h3>${gambit.icon} ${gambit.title}${titleSuffix}</h3>
           <p>${gambit.getDesc(nextLvl)}</p>
@@ -146,44 +148,8 @@ function triggerDraft(type) {
   document.getElementById('draft-screen').style.display = 'flex';
 }
 
-window.toggleGambitSelection = function(perkId) {
-  const card = document.getElementById(`draft-card-${perkId}`);
-  const idx = gameState.pendingDraftSelections.indexOf(perkId);
-  
-  if (idx !== -1) {
-    // Deselect
-    gameState.pendingDraftSelections.splice(idx, 1);
-    card.classList.remove('selected');
-  } else {
-    // Determine how many picks are allowed based on available options (usually 2)
-    const availableCards = document.querySelectorAll('#draft-cards .card').length;
-    const maxPicks = Math.min(2, availableCards);
-    
-    // Select if under limit
-    if (gameState.pendingDraftSelections.length < maxPicks) {
-      gameState.pendingDraftSelections.push(perkId);
-      card.classList.add('selected');
-    }
-  }
-  
-  // Show/Hide Confirm Button
-  const requiredPicks = Math.min(2, document.querySelectorAll('#draft-cards .card').length);
-  if (gameState.pendingDraftSelections.length === requiredPicks && requiredPicks > 0) {
-    document.getElementById('confirm-draft-btn').style.display = 'block';
-  } else {
-    document.getElementById('confirm-draft-btn').style.display = 'none';
-  }
-};
-
+window.selectGambit = function(perk) { gameState.perks.push(perk); finishDraft(); };
 window.selectEvolution = function(newType) { gameState.playerType = newType; finishDraft(); };
-
-document.getElementById('confirm-draft-btn').addEventListener('click', () => {
-  if (gameState.pendingDraftSelections.length > 0) {
-    gameState.perks.push(...gameState.pendingDraftSelections);
-  }
-  finishDraft();
-});
-
 window.activateTrap = function() {
   if (gameState.turn !== 'player' || gameState.trapUsedThisRound || gameState.isDrafting) return;
   gameState.isPlacingTrap = true;
@@ -194,7 +160,6 @@ window.activateTrap = function() {
 function finishDraft() {
   document.getElementById('draft-screen').style.display = 'none';
   gameState.isDrafting = false;
-  gameState.pendingDraftSelections = [];
   startLevel();
 }
 
@@ -247,7 +212,7 @@ function startLevel() {
     
     log(`WARNING: Boss Wave! Break the Vanguard!`);
   } else {
-    // First 3 rounds are ONLY pawns, with slightly more pawns to farm
+    // First 3 rounds are ONLY pawns
     const pawnCount = gameState.level + 2; 
     for (let i = 0; i < pawnCount; i++) spawnEnemy('Pawn', Math.floor(gameState.board.height / 2));
     
